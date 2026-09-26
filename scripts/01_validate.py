@@ -1,27 +1,27 @@
 """
 Validate the QAE option pricer and decompose its error budget.
 
-Four independent error sources stack up between the analytic expected payoff
-and what QAE returns:
+Three contributions are measured between the analytic expected payoff and what
+QAE returns:
 
-  1. Truncation     - the lognormal is cut off at mean +/- n_std * sd
-  2. Discretisation - the survivor is placed on 2**nq grid points
-  3. Approximation  - the small-angle linearisation of the payoff, set by c
-  4. Estimation     - finite sampling in amplitude estimation, set by epsilon
+  1. Encoding      - truncation to a window, renormalisation, and discretisation
+                     onto 2**nq grid points, taken together as the gap between
+                     the exact grid expectation and the analytic value
+  2. Approximation - the small-angle linearisation of the payoff, set by c
+  3. Estimation    - finite sampling in amplitude estimation, set by epsilon
+
+Only the third shrinks when you spend more oracle queries. Truncation and
+discretisation are not separated here: that would need a continuous truncated
+reference, which this script does not compute.
 
 Each configuration is repeated over several seeds. A single run cannot tell a
 systematic offset apart from a lucky draw, so the sweep reports bias (distance
-from the mean to the truth) and spread separately.
-
-Only the fourth shrinks when you spend more oracle queries. The first is the
-one most easily missed: a call payoff grows linearly in the upper tail, so a
-window that looks generous for the distribution can still be far too narrow
-for the option written on it. This script measures all four separately so the
-trade-off is visible rather than assumed.
+from the mean to the truth), the standard error of that mean, and the spread.
 
 Usage:
-    python scripts/01_validate.py            # full sweep (~10-20 min)
-    python scripts/01_validate.py --quick    # coarse sweep (~1 min)
+    python scripts/01_validate.py --quick    # coarse sweep (~20 s)
+    python scripts/01_validate.py            # full sweep: 18 configs x 20 seeds
+                                             #   + one eps=1e-4 probe x 5 seeds
 """
 
 import argparse
@@ -88,8 +88,9 @@ def main() -> None:
     print("ENCODING ERROR  |grid exact - analytic|, before any estimation")
     print("=" * 68)
     print("  Rows: truncation width (n_std).  Columns: uncertainty qubits (nq).")
-    print("  Read down a column, not across a row: widening the window buys more")
-    print("  than adding qubits, and at n_std=3 no qubit count converges at all.")
+    print("  Window width and grid resolution must be co-tuned; increasing either")
+    print("  alone does not guarantee lower encoding error. At n_std=3 no qubit")
+    print("  count converges over this range.")
     print()
     nq_grid = (3, 4, 5, 6, 7)
     print("  n_std " + " ".join(f"{'nq=' + str(n):>10}" for n in nq_grid))
@@ -125,11 +126,15 @@ def main() -> None:
 
     print()
     print("=" * 68)
-    print(f"QAE SWEEP  ({len(configs)} configurations x {n_seeds} seeds, n_std={N_STD})")
+    n_probe = sum(1 for _, _, e in configs if e < 1e-3)
+    n_main = len(configs) - n_probe
+    label = (f"{n_main} configs x {n_seeds} seeds"
+             + (f" + {n_probe} eps<1e-3 probe x {min(n_seeds, 5)} seeds" if n_probe else ""))
+    print(f"QAE SWEEP  ({label}, n_std={N_STD})")
     print("=" * 68)
-    print("  bias = |mean(estimate) - grid exact|; se = sd/sqrt(n) is its")
-    print("  standard error. A bias smaller than its se is not distinguishable")
-    print("  from zero at that seed count.")
+    print("  bias = |mean(estimate) - grid exact|; se = sd/sqrt(n) is the standard")
+    print("  error of the mean estimate. A bias smaller than se is not")
+    print("  distinguishable from zero at that seed count.")
     print()
     print(f"  {'nq':>3} {'c':>6} {'eps':>7} {'n':>3} {'mean':>9} {'bias':>8} "
           f"{'se':>7} {'sd':>8} {'queries':>9} {'sec':>6}")

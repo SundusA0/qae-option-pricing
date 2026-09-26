@@ -169,7 +169,7 @@ def main() -> None:
         return front
 
     def show(front, label):
-        print(f"   {'queries':>10} {'total err':>11}   configuration")
+        print(f"   {'queries':>10} {'RMSE':>11}   configuration")
         for q, err, r in front:
             print(f"   {q:>10,.0f} {err:>11.4f}   nq={r['num_qubits']}, "
                   f"c={r['rescaling_factor']}, eps={r['epsilon_target']:g}")
@@ -182,16 +182,22 @@ def main() -> None:
 
     print()
     print("=" * 70)
-    print("3a. CONDITIONAL FRONTIER  (error relative to the encoded grid)")
+    print("3a. CONDITIONAL FRONTIER  (RMSE relative to the encoded grid)")
     print("=" * 70)
-    print("   sqrt(bias^2 + sd^2) against the exact expectation ON the truncated,")
-    print("   discretised distribution. This isolates what amplitude estimation")
-    print("   does, holding the encoding fixed. It excludes encoding error.")
+    print("   Estimated RMSE = sqrt(bias^2 + sd^2) against the exact expectation")
+    print("   ON the truncated, discretised distribution. This isolates what")
+    print("   amplitude estimation does, holding the encoding fixed.")
     print()
     cond = build_frontier(lambda r: float(np.hypot(r["bias"], r["sd"])))
     err_exp = show(cond, "conditional")
     if err_exp is None:
         return
+    # the tightest-precision point is the least replicated and most influential;
+    # report the fit with and without it
+    if len(cond) >= 4:
+        e_wo, _ = powerlaw([f[0] for f in cond[:-1]], [f[1] for f in cond[:-1]])
+        print(f"   without the last point:  error ~ N^{e_wo:.2f}   i.e.   N ~ error^{1 / e_wo:.2f}")
+        print("   The endpoint moves the exponent noticeably; treat the fit as indicative.")
     print()
     print("   Reference points: ideal amplitude estimation N ~ error^-1.0;")
     print("   classical Monte Carlo N ~ error^-2.0.")
@@ -210,7 +216,7 @@ def main() -> None:
 
     print()
     print("=" * 70)
-    print("3b. END-TO-END FRONTIER  (error relative to analytic payoff)")
+    print("3b. END-TO-END FRONTIER  (RMSE relative to analytic payoff)")
     print("=" * 70)
     print("   Truncation and discretisation included: the total error relative")
     print("   to the analytic expected payoff.")
@@ -253,7 +259,7 @@ def main() -> None:
     print("   untruncated lognormal would score the two methods on different")
     print("   quantities.")
     print()
-    print(f"   {'total err':>10} {'nq':>3} {'grid sigma':>11} {'QAE queries':>13} "
+    print(f"   {'RMSE':>10} {'nq':>3} {'grid sigma':>11} {'QAE queries':>13} "
           f"{'MC samples':>12} {'ratio':>8}")
     comparison = []
     for q, err, r in cond:

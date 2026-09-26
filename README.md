@@ -87,14 +87,15 @@ suggest three qubits suffice.
 Twenty seeds per configuration, so a systematic offset can be distinguished from
 sampling noise. At `ε = 10⁻³`, averaged over `nq ∈ {3, 4, 5}`:
 
-| `c` | bias | s.e. of bias | spread (sd) |
+| `c` | bias | SE of mean estimate | spread (sd) |
 |---|---|---|---|
 | 0.25 | 0.961 | 0.004 | 0.018 |
 | 0.10 | 0.123 | 0.022 | 0.098 |
 | 0.05 | 0.045 | 0.032 | 0.142 |
 
-At `c = 0.25` and `c = 0.10` the bias is many standard errors from zero. At
-`c = 0.05` it is not: 0.045 ± 0.032 is compatible with zero at this seed count.
+At `c = 0.25` and `c = 0.10` the bias exceeds the standard error of the mean
+many times over. At `c = 0.05` it does not: 0.045 against an SE of 0.032 is
+compatible with zero at this seed count.
 A power-law fit over the three values gives `c^1.92`, consistent with the
 quadratic bias expected from a second-order linearisation error; the fit is
 anchored by the two well-determined points.
@@ -118,12 +119,13 @@ Minimising `c² + ε/c` gives `c ~ ε^(1/3)`, total error `~ ε^(2/3)`, and with
 convergence for the lowest-depth payoff encoding, against `O(M^−1/2)` for
 classical Monte Carlo and `O(M^−1)` for ideal QAE.
 
-### Error relative to the encoded grid
+### RMSE relative to the encoded grid
 
 This holds the encoding fixed and isolates the amplitude-estimation contribution.
-Total error is `√(bias² + sd²)`.
+Estimated RMSE is `√(bias² + sd²)`, the usual bias–variance decomposition of a
+single run's root-mean-square error.
 
-| oracle queries | total error | configuration |
+| oracle queries | RMSE | configuration |
 |---|---|---|
 | 3,277 | 1.7273 | nq=5, c=0.10, ε=10⁻² |
 | 5,018 | 1.0112 | nq=3, c=0.25, ε=10⁻² |
@@ -133,17 +135,19 @@ Total error is `√(bias² + sd²)`.
 | 966,451 | 0.0437 | nq=4, c=0.05, ε=10⁻⁴ |
 
 Empirical exponent **−1.53** over six frontier points, against the −1.5 the
-trade-off predicts. The agreement is closer than a six-point fit on one option
-can justify, and should be read as qualitatively consistent rather than as a
-measurement of the asymptotic exponent.
+trade-off predicts. The last point is the least replicated (five seeds) and the
+most influential: without it the fit gives −1.26. The agreement at −1.53 is
+closer than a six-point fit on one option can justify, and should be read as
+qualitatively consistent rather than as a measurement of the asymptotic
+exponent.
 
-### Error relative to the analytic payoff (Black–Scholes reference)
+### RMSE relative to the analytic payoff (Black–Scholes reference)
 
 Truncation and discretisation included. The analytic payoff is the undiscounted
 expectation `E[max(S_T − K, 0)]`; the Black–Scholes price is that times
 `exp(−rT)`.
 
-| oracle queries | total error | configuration |
+| oracle queries | RMSE | configuration |
 |---|---|---|
 | 3,277 | 1.7130 | nq=4, c=0.10, ε=10⁻² |
 | 5,222 | 1.0856 | nq=5, c=0.25, ε=10⁻² |
@@ -168,7 +172,7 @@ same truncated and discretised distribution amplitude estimation encodes, using
 that grid's exact payoff variance. Comparing against the untruncated lognormal
 would score the two methods on different quantities.
 
-| total error | nq | grid σ | QAE queries | MC samples | ratio |
+| RMSE | nq | grid σ | QAE queries | MC samples | ratio |
 |---|---|---|---|---|---|
 | 1.7273 | 5 | 12.8454 | 3,277 | 55 | 59× |
 | 1.0112 | 3 | 12.4543 | 5,018 | 152 | 33× |
@@ -307,7 +311,7 @@ pip install -r requirements-lock.txt      # exact resolved environment
 
 python -m pytest tests/ -q               # 15 tests, ~40 s
 python scripts/01_validate.py --quick    # ~20 s
-python scripts/01_validate.py            # ~40 min, 19 configs x 20 seeds
+python scripts/01_validate.py            # ~40 min, 18 configs x 20 seeds + one eps=1e-4 probe x 5
 python scripts/02_analyse.py             # conditional/end-to-end frontiers, matched classical comparison
 python scripts/03_resources.py           # circuits, schedule depth, error proxy
 python scripts/04_noise.py               # noise threshold, ~4 min
@@ -348,8 +352,10 @@ successfully"; `SamplerV2` fails the same way.
 - One option (S₀=100, K=105, σ=0.20, r=0.03, T=1) at up to 5 uncertainty qubits.
   Nothing here establishes behaviour across moneyness, volatility or maturity.
 - Twenty seeds per configuration is enough to resolve the bias at `c ≥ 0.10` but
-  not at `c = 0.05`. Fitted exponents are small-sample observations without
-  confidence intervals, not characterised measurements of asymptotic rates.
+  not at `c = 0.05`; the `ε = 10⁻⁴` probe uses five. Fitted exponents are
+  small-sample observations without confidence intervals, not characterised
+  measurements of asymptotic rates. A bootstrap over seeds and frontier
+  membership would quantify this and is not done here.
 - Truncation and discretisation are measured jointly as encoding error, not
   separated with a continuous truncated-distribution reference.
 - The resource counts describe Qiskit's generic amplitude-initialisation loader,
