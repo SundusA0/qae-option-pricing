@@ -1,18 +1,15 @@
 """
-When does coherent amplification stop paying for itself?
+How a simple depolarising-noise model limits useful amplification depth.
 
-Amplitude estimation earns its speedup by applying the Grover operator Q many
-times: k iterations amplify the signal by roughly (2k+1). Every application also
-runs several hundred two-qubit gates, and under depolarising noise each one
-contracts the measured distribution toward maximally mixed.
+Amplitude estimation applies the Grover operator Q repeatedly: k iterations
+amplify the signal by roughly (2k+1). Each application executes several hundred
+two-qubit gates, and under depolarising noise each gate moves the measured
+distribution toward maximally mixed. Amplification is linear in k; fidelity
+decays exponentially in k.
 
-So the two effects fight. Amplification grows linearly in k; fidelity decays
-exponentially in k. This script measures the decay empirically, checks it against
-exp(-p * N_2Q), and then solves for the k that maximises the product.
-
-The answer has a threshold in it. Below a certain gate fidelity the optimal
-number of Grover iterations is zero, and amplitude estimation reduces to plain
-Monte Carlo sampling on very expensive hardware.
+This script measures the contrast decay at small k, compares it against
+exp(-p * N_2Q), and evaluates a small-angle heuristic for the k at which
+amplification stops being useful under the assumed noise model.
 
 Usage:
     python scripts/04_noise.py            # ~4 min
@@ -85,9 +82,8 @@ def optimal_power(A: int, Q: int, p: float) -> tuple[int, float]:
     The k maximising (2k+1) * exp(-p * (A + kQ)), and the value there.
 
     Amplification is linear in k; fidelity is exponential in k. The continuous
-    optimum sits at k = 1/(pQ) - 1/2, giving a maximum gain of about
-    0.74/(pQ) once the exponential is evaluated there. Values below 1 mean
-    amplification costs more signal than it creates.
+    optimum sits at k = 1/(pQ) - 1/2. This is a heuristic proxy for useful
+    amplification, not a derived optimum for noisy amplitude estimation.
     """
     if p <= 0:
         return -1, float("inf")
@@ -121,10 +117,10 @@ def main() -> None:
     cm = CouplingMap.from_heavy_hex(distance=3)
 
     print("=" * 76)
-    print(f"1. AMPLIFICATION UNDER NOISE  (simulated, nq={nq}, {shots:,} shots)")
+    print(f"1. CONTRAST UNDER NOISE  (simulated, nq={nq}, {shots:,} shots)")
     print("=" * 76)
-    print("   Noiseless, P(good) follows sin^2((2k+1)*theta) and oscillates.")
-    print("   Under noise it contracts toward 0.5, which carries no information.")
+    print("   Noiseless, P(good) follows sin^2((2k+1)*theta).")
+    print("   Under noise it moves toward 0.5, the maximally mixed value.")
     print()
     header = f"   {'k':>2} {'2Q gates':>9} |" + "".join(
         f"{('noiseless' if r == 0 else f'p={r:g}'):>11}" for r in RATES)
@@ -174,39 +170,38 @@ def main() -> None:
     if checks:
         err = float(np.mean([abs(c["measured"] - c["predicted"]) for c in checks]))
         print(f"\n   Mean absolute deviation: {err:.4f}")
-        print("   The exponential model holds, so it can be extrapolated to depths")
-        print("   that cannot be simulated directly.")
+        print("   The exponential model is consistent with the tested points.")
+        print("   Extrapolation beyond the simulated range is used below only as")
+        print("   a heuristic.")
 
     nqe = args.nq_extrapolate
     A, Q = gate_costs(nqe)
 
     print()
     print("=" * 76)
-    print(f"3. IS AMPLIFICATION WORTH IT?  (extrapolated, nq={nqe})")
+    print(f"3. HEURISTIC USEFUL-DEPTH ESTIMATE  (extrapolated, nq={nqe})")
     print("=" * 76)
     print(f"   State preparation A: {A:,} two-qubit gates")
     print(f"   Grover operator  Q: {Q:,} two-qubit gates")
     print()
-    print("   k iterations multiply the signal by (2k+1) and the fidelity by")
-    print("   exp(-p*(A + kQ)). The useful gain is the product. A gain below 1")
-    print("   means amplification destroys more signal than it creates.")
+    print("   As a small-angle heuristic for useful amplification, consider")
+    print("   (2k+1) * exp(-p*(A + kQ)): amplification times surviving fidelity.")
+    print("   This is an engineering proxy, not a derived expression for the")
+    print("   information gain of noisy amplitude estimation. A value below 1")
+    print("   indicates amplification costs more signal than it creates.")
     print()
-    print(f"   {'2Q error rate':>14} {'optimal k':>10} {'max gain':>10}   verdict")
+    print(f"   {'2Q error rate':>14} {'optimal k':>10} {'H(k*)':>10}   note")
     est = []
-    for rate, label in [(2e-3, "current superconducting"),
-                        (1e-4, "optimistic near-term"),
-                        (1e-6, "aggressive"),
-                        (1e-8, "early fault-tolerant logical")]:
+    for rate, label in [(2e-3, ""), (1e-4, ""), (1e-6, ""), (1e-8, "")]:
         k, gain = optimal_power(A, Q, rate)
-        verdict = "amplification LOSES" if gain <= 1.0 else f"{gain:.0f}x over sampling"
-        est.append({"rate": rate, "label": label, "optimal_k": k, "max_gain": gain})
+        verdict = f"k = {k:,} selected"
+        est.append({"rate": rate, "optimal_k": k, "heuristic_score": gain})
         print(f"   {rate:>14g} {k:>10,} {gain:>10.2f}   {verdict}")
 
     print()
-    print("   Below a threshold fidelity the optimum is k = 0: amplitude estimation")
-    print("   reduces to ordinary Monte Carlo sampling, executed on hardware many")
-    print("   orders of magnitude slower than a CPU. Noise does not erode the")
-    print("   quantum speedup gradually. It inverts it.")
+    print("   For sufficiently large error rates the heuristic selects k = 0,")
+    print("   indicating that additional coherent amplification is not beneficial")
+    print("   under the assumed noise model.")
 
     (RESULTS / "noise.json").write_text(json.dumps({
         "shots": shots, "rates": list(RATES), "empirical_nq": nq,

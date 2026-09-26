@@ -1,7 +1,7 @@
 """
 Validate the QAE option pricer and decompose its error budget.
 
-Four independent error sources stack up between the true Black-Scholes price
+Four independent error sources stack up between the analytic expected payoff
 and what QAE returns:
 
   1. Truncation     - the lognormal is cut off at mean +/- n_std * sd

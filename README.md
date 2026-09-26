@@ -1,32 +1,38 @@
-# Quantum amplitude estimation for European option pricing: a resource and error budget
+# Quantum amplitude estimation for European option pricing: a reproduction and error budget
 
-Quantum amplitude estimation is the standard proposal for accelerating derivative
-pricing, on the strength of a quadratic speedup over classical Monte Carlo. This
-repository asks what that speedup costs in practice on the simplest possible
-instrument — a vanilla European call — by measuring each error source separately
-and converting the result into a hardware requirement.
+Quantum amplitude estimation (QAE) is a standard proposal for accelerating
+derivative pricing, on the strength of a quadratic speedup over classical Monte
+Carlo. This repository reproduces its known behaviour on a vanilla European call,
+measures each error source separately, and follows the consequences through to
+circuits and devices.
 
-**What this is and is not.** The pricing construction is not novel. Qiskit Finance
-already provides `EuropeanCallPricing`, the lognormal loading, the linearised
-payoff with its rescaling factor, and iterative amplitude estimation; the
-[official tutorial](https://qiskit-community.github.io/qiskit-finance/tutorials/03_european_call_option_pricing.html)
-is the starting point. The contribution here is the benchmarking around it:
-separating the error sources, measuring how each scales, and turning the result
-into a statement about circuits and devices.
+## What this is
 
-**Summary of findings.** Of the four error terms between a Black–Scholes price and
-what amplitude estimation returns, only one responds to spending more oracle
-queries. Two of the other three are coupled, so tuning either alone makes the
-answer worse. The third, the payoff linearisation, forces a trade-off that over
-the configurations tested degrades the scaling from the ideal `N ~ ε⁻¹` to an
-empirical `N ~ ε⁻¹·³`. Converting the IQAE schedule into circuits, the deepest
-coherent computation at the tightest precision tested is 2.1 × 10⁶ two-qubit
-gates, implying a tolerable error rate near 5 × 10⁻⁷ — roughly 4,000× better than
-current superconducting devices. Under the depolarising noise model studied here,
-at representative present-day error rates the optimal number of Grover iterations
-is zero: additional amplification destroys more signal than it creates.
+This is a reproduction and benchmarking study rather than a new option-pricing
+algorithm or asymptotic result. The underlying methods and trade-offs are
+established in prior work:
 
-The option priced here has a closed-form solution that a laptop evaluates exactly.
+| Component | Prior work |
+|---|---|
+| QAE for option pricing | Stamatopoulos et al. (2020); Qiskit Finance `EuropeanCallPricing` |
+| The rescaling-factor trade-off and its `O(M^−2/3)` convergence rate | Woerner & Egger (2019), derived analytically |
+| Fault-tolerant resource requirements for derivative pricing | Chakrabarti et al. (2021): 8k logical qubits, T-depth 5.4 × 10⁷ |
+| Noise limiting useful amplification depth | Tanaka et al. (2021); Herbert et al. (2021) |
+| Truncation and discretisation of a continuous distribution | Standard numerical analysis |
+
+The [Qiskit Finance tutorial](https://qiskit-community.github.io/qiskit-finance/tutorials/03_european_call_option_pricing.html)
+provides the lognormal loading, the truncation, the discretisation, the linearised
+payoff with its rescaling factor, and iterative amplitude estimation. That is the
+starting point, not a contribution.
+
+This repository adds the experimental workflow: the parameter sweeps, the separation of
+four error sources with bias distinguished from variance across seeds, the
+instrumentation of the IQAE schedule, the transpiled resource counts, the noise
+measurement, and the end-to-end frontier reported below.
+
+The goal is to measure these error sources together in one implementation and
+identify which constraint dominates in practice. The European call has a
+closed-form Black–Scholes reference, which is used as the analytic baseline.
 
 ---
 
@@ -37,12 +43,12 @@ The option priced here has a closed-form solution that a laptop evaluates exactl
 | 1 | Truncation of the lognormal | window width `n_std` | no |
 | 2 | Discretisation onto `2^nq` grid points | qubit count `nq` | no |
 | 3 | Small-angle linearisation of the payoff | rescaling factor `c` | no |
-| 4 | Finite sampling in amplitude estimation | target precision `ε` | **yes** |
+| 4 | Finite sampling in amplitude estimation | target precision `ε` | yes |
 
-Sources 1–3 are classical modelling decisions. No improvement in quantum hardware
-touches any of them. That the rescaling factor trades approximation against
-estimation precision is documented behaviour in Qiskit Finance; what is measured
-here is the size of that trade-off and what it does to the scaling.
+Sources 1–3 are encoding and modelling errors rather than amplitude-estimation
+sampling errors. Increasing the number of AE queries does not reduce them;
+reducing them requires changing the encoded model — increasing grid resolution,
+widening the truncation window, or using a more accurate payoff representation.
 
 ### Truncation and discretisation are coupled
 
@@ -56,21 +62,22 @@ Encoding error `|grid exact − analytic|`, before any estimation:
 | **6** | 0.2057 | 0.1736 | 0.0134 | 0.0206 | 0.0002 |
 | **7** | 1.2994 | 0.1223 | 0.0563 | 0.0107 | 0.0022 |
 
-Accuracy lives on a diagonal. Widening the window without adding qubits spreads
-the same grid points thinner; adding qubits inside a narrow window resolves a
-distribution that has already been clipped. At `n_std = 3` the error plateaus near
-0.42, about 5.7% of the payoff, and does not improve with qubit count over the
-range tested. The reason is specific to call options: `max(S_T − K, 0)` grows
-linearly in the upper tail, so truncated tail mass carries real value.
+The minimum along each row moves right as the window widens: the two parameters
+have to be chosen together. Widening the window at fixed qubit count spreads the
+same grid points over a larger interval; adding qubits inside a narrow window
+resolves a distribution that has already been clipped. At `n_std = 3` the error
+stays near 0.42 (5.7% of the payoff) across all qubit counts tested, because the
+call payoff grows linearly in the upper tail and truncated tail mass carries
+value.
 
-The 0.0257 at `n_std = 3, nq = 3` is accidental cancellation — a coarse grid
-overshooting into a truncation deficit — not accuracy. A single row read in
-isolation would suggest three qubits suffice.
+The 0.0257 at `n_std = 3, nq = 3` is cancellation between a coarse grid
+overshooting and a truncation deficit, not accuracy. Reading that row alone would
+suggest three qubits suffice.
 
-### Bias and spread pull in opposite directions
+### Bias and spread respond oppositely to `c`
 
-Each configuration is repeated over five seeds, so a systematic offset can be
-distinguished from a lucky draw. At `ε = 10⁻³`:
+Five seeds per configuration, so a systematic offset can be distinguished from a
+lucky draw. At `ε = 10⁻³`:
 
 | `c` | bias | spread (sd) | sd × c |
 |---|---|---|---|
@@ -78,52 +85,100 @@ distinguished from a lucky draw. At `ε = 10⁻³`:
 | 0.10 | 0.1818 | 0.0960 | 0.0096 |
 | 0.05 | 0.0412 | 0.2265 | 0.0113 |
 
-Over these three values the bias fits `c¹·⁹⁵`, consistent with a second-order
-linearisation error, and the near-constant `sd × c` column indicates `sd ~ ε/c`,
-as expected when the amplitude signal is itself proportional to `c`. Shrinking `c`
-to suppress the bias amplifies the sampling error in the same motion.
+Bias fits `c¹·⁹⁵` over these three values, consistent with a second-order
+linearisation error. The near-constant `sd × c` column indicates `sd ~ ε/c`, as
+expected when the amplitude signal is proportional to `c`. Reducing `c` lowers the
+bias and raises the sampling error. This is the trade-off Woerner & Egger analyse.
 
-Single-seed runs are unreliable here. At `c = 0.05, ε = 10⁻²` the spread across
-seeds is 2.48, so one draw carries little information about the bias — yet it will
-report a definite-looking error.
-
----
-
-## What the trade-off costs
-
-Minimising `c² + ε/c` gives `c ~ ε^(1/3)`, hence total error `~ ε^(2/3)`. Since
-`N ~ 1/ε`, that predicts `N ~ error^(−3/2)`.
-
-Efficient frontier over all 19 configurations (total error = `√(bias² + sd²)`):
-
-| oracle queries | total error | configuration | classical MC samples | ratio |
-|---|---|---|---|---|
-| 3,277 | 2.8367 | nq=5, c=0.05, ε=10⁻² | 21 | 158× |
-| 5,325 | 1.2519 | nq=3, c=0.25, ε=10⁻² | 106 | 50× |
-| 54,682 | 0.2158 | nq=5, c=0.05, ε=10⁻³ | 3,584 | 15.3× |
-| 84,173 | 0.1565 | nq=5, c=0.10, ε=10⁻³ | 6,812 | 12.4× |
-| 912,589 | 0.0415 | nq=4, c=0.05, ε=10⁻⁴ | 97,063 | 9.4× |
-
-The sampled frontier gives an empirical exponent of about **−1.32**, against −1.5
-from the bias–variance model above. Ideal amplitude estimation would be −1.0 and
-classical Monte Carlo is −2.0. This is an observation over seven frontier points
-on one option, not a proven law, but it sits where the trade-off predicts.
-
-Amplitude estimation is behind at every budget reachable in simulation — and an
-oracle query is a nine-qubit circuit with hundreds of gates, while a Monte Carlo
-sample is one exponential and one `max()`.
-
-Extrapolating the fit, the crossover falls near **1.55 × 10⁻³ absolute error**
-(2.1 basis points of the expected payoff), where both methods need roughly
-7 × 10⁷ operations. This extrapolates well outside the measured region and should
-be read as indicative.
+A single seed is insufficient at these parameter values because the between-seed
+variance is large: at `c = 0.05, ε = 10⁻²` the spread across seeds is 2.48, larger
+than the bias being measured.
 
 ---
 
-## Converting queries into circuits
+## Conditional and end-to-end frontiers
+
+Minimising `c² + ε/c` gives `c ~ ε^(1/3)`, total error `~ ε^(2/3)`, and with
+`N ~ 1/ε`, `N ~ error^(−3/2)`. Woerner & Egger derive this as `O(M^−2/3)`
+convergence for the lowest-depth payoff encoding, against `O(M^−1/2)` for
+classical Monte Carlo and `O(M^−1)` for ideal QAE.
+
+### Error relative to the encoded grid
+
+This holds the encoding fixed and isolates the amplitude-estimation contribution.
+
+| oracle queries | total error | configuration |
+|---|---|---|
+| 3,277 | 2.8367 | nq=5, c=0.05, ε=10⁻² |
+| 4,506 | 2.1174 | nq=3, c=0.10, ε=10⁻² |
+| 5,325 | 1.2519 | nq=3, c=0.25, ε=10⁻² |
+| 54,682 | 0.2158 | nq=5, c=0.05, ε=10⁻³ |
+| 79,667 | 0.1758 | nq=4, c=0.10, ε=10⁻³ |
+| 84,173 | 0.1565 | nq=5, c=0.10, ε=10⁻³ |
+| 912,589 | 0.0415 | nq=4, c=0.05, ε=10⁻⁴ |
+
+Empirical exponent −1.32, qualitatively consistent with the −1.5 the trade-off
+predicts. Seven points on one option over a limited range does not measure an
+asymptotic exponent; the gap is the size expected from constants, discrete
+parameter choices, and frontier selection at finite scale.
+
+### Error relative to the analytic payoff (Black–Scholes reference)
+
+Truncation and discretisation included. The analytic payoff is the undiscounted
+expectation `E[max(S_T − K, 0)]`; the Black–Scholes price is that times
+`exp(−rT)`.
+
+| oracle queries | total error | configuration |
+|---|---|---|
+| 3,277 | 2.8389 | nq=5, c=0.05, ε=10⁻² |
+| 4,506 | 2.4882 | nq=3, c=0.10, ε=10⁻² |
+| 5,325 | 1.4471 | nq=5, c=0.25, ε=10⁻² |
+| 6,144 | 1.3928 | nq=4, c=0.25, ε=10⁻² |
+| 54,682 | 0.2163 | nq=5, c=0.05, ε=10⁻³ |
+| 84,173 | 0.1603 | nq=5, c=0.10, ε=10⁻³ |
+
+The most expensive configuration in the sweep is absent from this frontier. At
+912,589 queries it reaches 0.0408 against its own grid but 0.1726 against
+the analytic payoff, because that grid — 4 uncertainty qubits at `n_std = 5` — sits
+0.1317 from the true value. A configuration using eleven times fewer queries has
+lower end-to-end error.
+
+At this point encoding error rather than amplitude-estimation error becomes the
+dominant limitation, and reducing it requires more qubits or a wider window rather
+than more queries.
+
+### Query-scaling comparison against classical Monte Carlo
+
+Costed on the conditional frontier, with classical Monte Carlo scored against the
+same truncated and discretised distribution amplitude estimation encodes, using
+that grid's exact payoff variance. Comparing against the untruncated lognormal
+would score the two methods on different quantities.
+
+| total error | nq | grid σ | QAE queries | MC samples | ratio |
+|---|---|---|---|---|---|
+| 2.8367 | 5 | 12.8454 | 3,277 | 21 | 159.8× |
+| 1.2519 | 3 | 12.4543 | 5,325 | 99 | 53.8× |
+| 0.2158 | 5 | 12.8454 | 54,682 | 3,544 | 15.4× |
+| 0.1565 | 5 | 12.8454 | 84,173 | 6,735 | 12.5× |
+| 0.0415 | 4 | 12.7779 | 912,589 | 94,948 | 9.6× |
+
+Amplitude estimation needs more oracle queries than Monte Carlo needs samples at
+every budget reachable in simulation. The ratio narrows as precision tightens,
+consistent with the better exponent. An oracle query is a nine-qubit circuit with
+hundreds of gates; a Monte Carlo sample is one exponential and one `max()`.
+
+No end-to-end crossover is estimated from this sweep. The end-to-end frontier
+reaches an approximation-error floor set by the encoded distribution before query
+scaling could dominate, so extrapolating a crossing point from these data would
+not be meaningful.
+
+---
+
+## Circuits and depth
 
 Compiled to a superconducting native basis (`cz, rz, sx, x`) at optimisation
-level 3:
+level 3, onto a heavy-hex connectivity proxy of the kind used by IBM Heron-class
+devices. Other architectures, including square-lattice designs, route differently.
 
 | `nq` | circuit qubits | 2Q gates (all-to-all) | 2Q gates (heavy-hex) | 2Q depth | routing overhead |
 |---|---|---|---|---|---|
@@ -131,15 +186,14 @@ level 3:
 | 4 | 9 | 524 | 1,008 | 752 | 1.9× |
 | 5 | 11 | 834 | 1,804 | 1,297 | 2.2× |
 
-Routed two-qubit gates scale as (circuit width)^2.8, and the routing overhead
-itself grows with width. A payoff needing 10–20 uncertainty qubits rather than 5
-would cost roughly 10× more per query.
+Routing overhead increases noticeably with circuit width across these three
+points. Three small circuits are not enough to infer an asymptotic routing law, so
+no exponent is fitted.
 
-### Two costs, easily conflated
+### Total workload vs. single-circuit depth
 
-IQAE is adaptive: it raises the Grover power `k` until the confidence interval is
-tight enough. Reading the schedule out of the algorithm at `nq = 5`
-(`A` = 324, `Q` = 1,804 routed two-qubit gates):
+IQAE raises the Grover power `k` adaptively. Reading the schedule out of the
+algorithm at `nq = 5` (`A` = 324, `Q` = 1,804 routed two-qubit gates):
 
 | `ε` | rounds | max `k` | deepest circuit (2Q gates) | total queries |
 |---|---|---|---|---|
@@ -149,50 +203,38 @@ tight enough. Reading the schedule out of the algorithm at `nq = 5`
 
 with `k_max ~ ε^−1.23` over this range.
 
-Two different quantities follow, and they answer different questions:
+Q-operator two-qubit gate executions across all oracle calls reach approximately
+2.3 × 10⁹ in the tightest run, excluding state-preparation executions and
+single-qubit gates. That figure sets throughput and wall-clock time. It does not
+set a fidelity requirement, because the shots are independent: a corrupted shot
+adds variance to the estimate rather than invalidating the run. The per-gate error
+rate is constrained instead by the deepest single circuit, `A` followed by `Q^k`
+at the largest `k` the schedule reaches, since noise accumulates within a single
+circuit execution.
 
-- **Total gate executions** — every gate run across every shot of every round,
-  1.24 × 10¹¹ at the extrapolated crossover. This sets wall-clock time and
-  throughput. It is **not** a fidelity requirement: the shots are independent, so
-  a corrupted shot adds variance to the estimate rather than invalidating the run.
-- **Deepest single circuit** — `A` followed by `Q^k` at the largest `k` the
-  schedule reaches. Errors accumulate coherently *within* one circuit, so this is
-  what bounds the tolerable per-gate error rate.
+Under an independent-error model, `p · G₂Q ≪ 1` is a deliberately conservative
+zero-two-qubit-fault proxy. It is not a fault-tolerance threshold or a prediction
+of algorithmic failure probability. At the tightest precision run (ε = 10⁻⁴) the
+deepest circuit is 2.1 × 10⁶ two-qubit gates, so the proxy is 4.8 × 10⁻⁷:
 
-> **Correction.** An earlier version of this analysis applied a zero-error budget
-> to the *total* gate count and reported a requirement of `p ≪ 8 × 10⁻¹²`. That
-> conflates the two costs above and overstates the requirement by several orders
-> of magnitude. The figures below use the deepest circuit, measured from the IQAE
-> schedule rather than assumed.
+| 2Q error rate | vs zero-fault proxy |
+|---|---|
+| 2 × 10⁻³ | 4,215× above |
+| 1 × 10⁻³ | 2,107× above |
+| 1 × 10⁻⁴ | 211× above |
+| 1 × 10⁻⁶ | 2× above |
 
-| | deepest circuit | tolerable `p` |
-|---|---|---|
-| tightest precision actually run (ε=10⁻⁴) | 2.1 × 10⁶ | ≪ 4.8 × 10⁻⁷ |
-| extrapolated to the crossover | 9.3 × 10⁸ | ≪ 1.1 × 10⁻⁹ |
-
-| device generation | 2Q error rate | vs deepest run |
-|---|---|---|
-| current superconducting (~2025) | 2 × 10⁻³ | 4,215× too high |
-| optimistic near-term | 1 × 10⁻⁴ | 211× too high |
-| early fault-tolerant logical | 1 × 10⁻⁸ | 47× headroom |
-
-So the tightest configuration simulated here would be within reach of an early
-fault-tolerant logical qubit, though still ~9× short of what the extrapolated
-crossover would demand. The physical-qubit overhead error correction requires is
-a separate cost not accounted for here.
+Chakrabarti et al. (2021) give fault-tolerant resource estimates for derivative
+pricing, including the physical-qubit overhead error correction demands.
 
 ---
 
-## Noise and the useful depth limit
+## Noise and useful depth
 
-Each Grover iteration amplifies the signal by roughly `(2k+1)` and multiplies the
-fidelity by `exp(−p(A + kQ))`. Amplification grows linearly in `k`; fidelity
-decays exponentially.
+For the simple model used here, amplification grows roughly as `(2k+1)` while
+surviving contrast is approximated by `exp(−p(A + kQ))`.
 
-### The signal collapse, measured
-
-`P(good state)` at `nq = 3`, 20,000 shots, depolarising noise at the stated
-two-qubit rate:
+`P(good state)` at `nq = 3`, 20,000 shots, depolarising noise:
 
 | `k` | 2Q gates | noiseless | p=10⁻⁵ | p=10⁻⁴ | p=10⁻³ |
 |---|---|---|---|---|---|
@@ -202,52 +244,33 @@ two-qubit rate:
 | 3 | 1,717 | 0.7247 | 0.7219 | 0.6908 | 0.5496 |
 | 4 | 2,290 | 0.2188 | 0.2254 | 0.2750 | 0.4759 |
 
-Noiseless, the value oscillates as `sin²((2k+1)θ)` — that oscillation is the
-amplification. Under noise it flattens toward 0.5, which carries no information.
+Noiseless, the value oscillates as `sin²((2k+1)θ)`. Under noise it moves toward
+0.5, the maximally mixed value. Surviving contrast follows `exp(−p · N₂Q)` with
+mean absolute deviation 0.0133 over twelve points spanning contrast 0.99 to 0.086.
 
-### The decay follows `exp(−p · N₂Q)`
+As a small-angle heuristic for useful amplification, consider
+`(2k+1) · exp(−p(A + kQ))`: amplification times surviving fidelity. This is an
+engineering proxy rather than a derived expression for the information gain of
+noisy amplitude estimation. Maximising it gives `k* ≈ 1/(pQ)`:
 
-Surviving contrast, `(measured − 0.5) / (noiseless − 0.5)`:
+| 2Q error rate | optimal `k` | `H(k*)` |
+|---|---|---|
+| 2 × 10⁻³ | 0 | 0.52 |
+| 1 × 10⁻⁴ | 5 | 4.3 |
+| 1 × 10⁻⁶ | 554 | 408 |
+| 1 × 10⁻⁸ | 55,432 | 40,785 |
 
-| rate | `k` | 2Q gates | measured | predicted |
-|---|---|---|---|---|
-| 10⁻⁵ | 4 | 2,290 | 0.9765 | 0.9774 |
-| 10⁻⁴ | 1 | 647 | 0.9540 | 0.9373 |
-| 10⁻⁴ | 4 | 2,290 | 0.8003 | 0.7953 |
-| 10⁻³ | 1 | 647 | 0.5595 | 0.5236 |
-| 10⁻³ | 2 | 1,180 | 0.3294 | 0.3073 |
-| 10⁻³ | 4 | 2,290 | 0.0857 | 0.1013 |
+At `p = 2 × 10⁻³` under this model, the heuristic selects `k = 0`, indicating that
+additional coherent amplification is not beneficial under the assumed noise model.
+That noise eventually saturates amplitude estimation is established (Tanaka et al.
+2021; Herbert et al. 2021); what is measured here is where the heuristic places the
+limit for this circuit.
 
-Mean absolute deviation **0.0133** over twelve points spanning contrast from 0.99
-to 0.086.
-
-### Where amplification stops paying
-
-Maximising `(2k+1) · exp(−p(A + kQ))` gives `k* ≈ 1/(pQ)`. A value below 1 means
-amplification destroys more signal than it creates. At `nq = 5`:
-
-| 2Q error rate | optimal `k` | max gain | |
-|---|---|---|---|
-| 2 × 10⁻³ | **0** | 0.52 | amplification is net-negative |
-| 1 × 10⁻⁴ | 5 | 4.3 | 4× over plain sampling |
-| 1 × 10⁻⁶ | 554 | 408 | 408× over plain sampling |
-| 1 × 10⁻⁸ | 55,432 | 40,785 | 40,785× over plain sampling |
-
-Under this noise model and circuit construction, at representative current
-two-qubit error rates additional Grover amplification is not beneficial: the
-optimum is `k = 0`, at which point amplitude estimation reduces to ordinary
-sampling. This is a statement about the configuration studied here, not a general
-impossibility result.
-
-Note that `k* ≈ 1/(pQ)` and the coherence bound `p ≪ 1/(A + k_max·Q)` are close to
-algebraic restatements of one another. They are reported separately because the
-two scripts reach the limit by different routes — one from the IQAE schedule, one
-from a fidelity-weighted optimum — and agreeing is a useful check that neither is
-mis-instrumented.
-
-The ceiling depending on the product `pQ` also means halving the oracle cost is
-worth as much as halving the error rate, which points at circuit synthesis rather
-than hardware alone.
+`k* ≈ 1/(pQ)` and the single-circuit bound `p ≪ 1/(A + k_max·Q)` are close to algebraic
+restatements of one another. They are reported separately because the two scripts
+reach the limit by different routes, and agreement checks that neither is
+mis-instrumented. Since the ceiling depends on the product `pQ`, halving oracle
+cost is worth as much as halving the error rate.
 
 ---
 
@@ -257,36 +280,35 @@ than hardware alone.
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 
-pytest tests/ -q                        # 15 tests, ~35 s
-python scripts/01_validate.py --quick   # ~20 s
-python scripts/01_validate.py           # ~6 min, 19 configs x 5 seeds
-python scripts/02_analyse.py            # scaling fits and crossover
-python scripts/03_resources.py          # circuits, schedule depth, error budget
-python scripts/04_noise.py              # noise threshold, ~4 min
+python -m pytest tests/ -q               # 15 tests, ~35 s
+python scripts/01_validate.py --quick    # ~20 s
+python scripts/01_validate.py            # ~6 min, 19 configs x 5 seeds
+python scripts/02_analyse.py             # conditional/end-to-end frontiers, matched classical comparison
+python scripts/03_resources.py           # circuits, schedule depth, error budget
+python scripts/04_noise.py               # noise threshold, ~4 min
 ```
 
-`src/pricing.py` provides four independent routes to the same quantity —
+`src/pricing.py` gives four independent routes to the same quantity:
 Black–Scholes closed form, exact expectation on the discretised grid, classical
-Monte Carlo, and amplitude estimation — so a discrepancy can be attributed to a
-specific source rather than absorbed into one number.
+Monte Carlo, and amplitude estimation. Discrepancies can then be attributed to a
+specific source.
 
-The tests pin the claims rather than the implementation: the Black–Scholes anchor,
-put–call parity, Monte Carlo convergence and `√N` error scaling, grid
-normalisation, the truncation/qubit coupling, and that reducing `c` reduces bias
-when averaged over seeds.
-
-Committed results under `results/` back every number quoted above.
+Tests cover the Black–Scholes anchor, put–call parity, Monte Carlo convergence and
+`√N` scaling, grid normalisation, the truncation/qubit coupling, and that reducing
+`c` reduces bias when averaged over seeds. Reference outputs under
+`results/reference/` back every number above; fresh runs write to `results/`,
+which is ignored.
 
 **Environment.** Python 3.12, `qiskit==2.5.2`, `qiskit-aer==0.17.2`,
 `qiskit-algorithms==0.4.0`, `qiskit-finance==0.4.1`. `requirements.txt` lists
-direct dependencies; `requirements-lock.txt` is the full resolved environment. Run
-on macOS and Linux with identical output to six decimal places, including oracle
-query counts.
+direct dependencies; `requirements-lock.txt` is the resolved environment. The
+encoding-error table and the `--quick` validation sweep were run on macOS and
+Linux and matched to six decimal places, including oracle query counts.
 
 **Compatibility note.** The Qiskit Finance tutorials use
 `qiskit_aer.primitives.Sampler`, which fails inside `IterativeAmplitudeEstimation`
 on this version combination with an uninformative "job was not completed
-successfully"; `qiskit.primitives.SamplerV2` fails the same way.
+successfully"; `SamplerV2` fails the same way.
 `qiskit.primitives.StatevectorSampler` works.
 
 ---
@@ -294,28 +316,27 @@ successfully"; `qiskit.primitives.SamplerV2` fails the same way.
 ## Limitations
 
 - One option (S₀=100, K=105, σ=0.20, r=0.03, T=1) at up to 5 uncertainty qubits.
-  Nothing here establishes behaviour for other parameter regimes.
-- The crossover extrapolates a 7-point fit far outside the measured range. It is
-  indicative only, and the error-rate figures derived from it inherit that.
-- The scaling exponent is an empirical fit over a coarse sweep, not a
-  statistically characterised measurement with uncertainties.
-- The coherence bound assumes errors accumulate independently and that one
-  expected error spoils a circuit. It ignores error mitigation, algorithmic
-  tolerance to modest infidelity, and, in a fault-tolerant setting, logical
-  failure rates and decoding.
-- Depolarising noise only, applied uniformly, with no measurement error,
-  crosstalk, leakage or idle decoherence. Real devices would be worse.
-- The noise measurement reaches k = 4 at 3 uncertainty qubits; larger `k` and
-  wider circuits are extrapolated through the fitted fidelity model.
-- Iterative amplitude estimation only. Maximum-likelihood and canonical variants
-  may sit differently on the frontier.
-- The argument applies to payoffs encoded through a linearised amplitude function.
-  Path-dependent payoffs, where quantum methods are more plausibly interesting,
-  are not covered.
+- Fitted exponents are small-sample observations without uncertainties, not
+  characterised measurements of asymptotic rates.
+- The zero-fault proxy assumes independent error accumulation and that one expected
+  error spoils a circuit. It ignores error mitigation, algorithmic tolerance to
+  modest infidelity, and logical failure rates and decoding under error
+  correction.
+- Depolarising noise only, uniform, with no measurement error, crosstalk, leakage
+  or idle decoherence.
+- Noise measured to k = 4 at 3 uncertainty qubits; larger `k` extrapolated through
+  the fitted fidelity model.
+- Iterative amplitude estimation only; MLAE and canonical variants may differ.
+- Applies to payoffs encoded through a linearised amplitude function.
+  Path-dependent payoffs are not covered. Exact-arithmetic payoff encodings avoid
+  the `c` trade-off at higher circuit cost and are not compared here.
 
 ## References
 
 - [Qiskit Finance: European call option pricing tutorial](https://qiskit-community.github.io/qiskit-finance/tutorials/03_european_call_option_pricing.html) — the construction benchmarked here
-- Woerner & Egger, *Quantum risk analysis*, npj Quantum Information 5, 15 (2019)
+- Woerner & Egger, *Quantum risk analysis*, npj Quantum Information 5, 15 (2019) — derives the rescaling trade-off and the `O(M^−2/3)` rate reproduced here
 - Stamatopoulos et al., *Option pricing using quantum computers*, Quantum 4, 291 (2020)
+- Chakrabarti et al., *A Threshold for Quantum Advantage in Derivative Pricing*, Quantum 5, 463 (2021) — fault-tolerant resource estimates
 - Grinko et al., *Iterative quantum amplitude estimation*, npj Quantum Information 7, 52 (2021)
+- Tanaka et al., *Amplitude estimation via maximum likelihood on noisy quantum computer*, Quantum Inf. Process. 20, 293 (2021)
+- Herbert et al., *Noise-Aware Quantum Amplitude Estimation*, arXiv:2109.04840 (2021)

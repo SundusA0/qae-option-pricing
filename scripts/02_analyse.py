@@ -1,12 +1,11 @@
 """
-Fit scaling laws to the sweep and locate the classical crossover.
+Fit scaling laws to the sweep and compare QAE with a matched classical Monte
+Carlo baseline.
 
 The sweep measures two error terms separately. This script asks how each one
-scales with the knobs that control it, combines them, and compares the result
-against classical Monte Carlo on the same option.
-
-The conclusion the numbers support is not the one usually quoted for amplitude
-estimation, and it is the reason this repo exists.
+scales with the knobs that control it, combines them into conditional and
+end-to-end frontiers, and costs classical Monte Carlo against the same encoded
+distribution so both methods are scored on the same quantity.
 
 Usage:
     python scripts/02_analyse.py
@@ -19,11 +18,13 @@ import json
 import statistics
 from collections import defaultdict
 from pathlib import Path
+import sys
 
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 RESULTS = ROOT / "results"
+sys.path.insert(0, str(ROOT))
 
 
 def load(csv_path: Path) -> list[dict]:
@@ -42,11 +43,42 @@ def load(csv_path: Path) -> list[dict]:
         mean = statistics.fmean(ests)
         out.append({
             "num_qubits": nq, "rescaling_factor": c, "epsilon_target": eps,
-            "n_seeds": len(ests), "mean": mean, "bias": abs(mean - grid),
+            "n_seeds": len(ests), "mean": mean, "grid": grid,
+            "bias": abs(mean - grid),
             "sd": statistics.stdev(ests) if len(ests) > 1 else 0.0,
             "queries": statistics.fmean([v[2] for v in vals]),
         })
     return out
+
+
+def first_existing(*paths: Path) -> Path:
+    """Return the first path that exists; the last one if none do."""
+    for p in paths:
+        if p.exists():
+            return p
+    return paths[-1]
+
+
+def grid_payoff_sigma(num_qubits: int, n_std: float = 5.0) -> float:
+    """
+    Exact standard deviation of the payoff ON the encoded grid.
+
+    The grid is a finite discrete distribution, so this is a sum rather than an
+    estimate. Using it means the classical comparison below estimates the same
+    quantity amplitude estimation does, instead of the untruncated lognormal.
+    """
+    from qiskit_finance.circuit.library import LogNormalDistribution
+    from src.pricing import OptionSpec
+
+    spec = OptionSpec()
+    low, high = spec.bounds(n_std)
+    dist = LogNormalDistribution(num_qubits, mu=spec.mu, sigma=spec.sigma**2,
+                                 bounds=(low, high))
+    probs = np.asarray(dist.probabilities, float)
+    vals = np.asarray(dist.values, float)
+    payoff = np.maximum(vals - spec.K, 0.0)
+    mean = float(probs @ payoff)
+    return float(np.sqrt(probs @ (payoff - mean) ** 2))
 
 
 def powerlaw(x, y) -> tuple[float, float]:
@@ -59,12 +91,14 @@ def powerlaw(x, y) -> tuple[float, float]:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--csv", default=str(RESULTS / "validation.csv"))
-    ap.add_argument("--payoff-sigma", type=float, default=None,
-                    help="per-sample std dev of the payoff (read from summary.json if omitted)")
+    ap.add_argument("--csv", default=None,
+                    help="sweep CSV (default: results/validation.csv, falling back "
+                         "to results/reference/validation.csv)")
     args = ap.parse_args()
 
-    rows = load(Path(args.csv))
+    csv_path = Path(args.csv) if args.csv else first_existing(
+        RESULTS / "validation.csv", RESULTS / "reference" / "validation.csv")
+    rows = load(csv_path)
     eps_levels = sorted({r["epsilon_target"] for r in rows})
     c_levels = sorted({r["rescaling_factor"] for r in rows}, reverse=True)
     # Reference epsilon for the bias and spread fits: the tightest level that
@@ -118,81 +152,141 @@ def main() -> None:
         print(f"   {c:>6}" + "".join(f"{v:>14.4f}" for v in cells) + f"{prod:>14.4f}")
     print("\n   The last column is roughly constant, so sd ~ eps / c.")
 
-    print()
-    print("=" * 70)
-    print("3. EFFICIENT FRONTIER: best total error per query budget")
-    print("=" * 70)
-    print("   total error = sqrt(bias^2 + sd^2), the honest combined figure.")
-    print()
-    pts = sorted((r["queries"], float(np.hypot(r["bias"], r["sd"])), r) for r in rows)
-    frontier, best = [], float("inf")
-    for q, err, r in pts:
-        if err < best:
-            best = err
-            frontier.append((q, err, r))
-    print(f"   {'queries':>10} {'total err':>11}   configuration")
-    for q, err, r in frontier:
-        print(f"   {q:>10,.0f} {err:>11.4f}   nq={r['num_qubits']}, "
-              f"c={r['rescaling_factor']}, eps={r['epsilon_target']:g}")
+    summary_path = first_existing(RESULTS / "summary.json",
+                                  RESULTS / "reference" / "summary.json")
+    analytic = None
+    if summary_path.exists():
+        analytic = json.loads(summary_path.read_text())["expected_payoff_analytic"]
 
-    if len(frontier) < 3:
-        print("\n   Too few frontier points to fit a scaling law. Run the full sweep.")
+    def build_frontier(err_fn):
+        pts = sorted((r["queries"], err_fn(r), r) for r in rows)
+        front, best = [], float("inf")
+        for q, err, r in pts:
+            if err < best:
+                best = err
+                front.append((q, err, r))
+        return front
+
+    def show(front, label):
+        print(f"   {'queries':>10} {'total err':>11}   configuration")
+        for q, err, r in front:
+            print(f"   {q:>10,.0f} {err:>11.4f}   nq={r['num_qubits']}, "
+                  f"c={r['rescaling_factor']}, eps={r['epsilon_target']:g}")
+        if len(front) >= 3:
+            e, _ = powerlaw([f[0] for f in front], [f[1] for f in front])
+            print(f"\n   fit: error ~ N^{e:.2f}   i.e.   N ~ error^{1 / e:.2f}")
+            return e
+        print(f"\n   Too few points on the {label} frontier to fit.")
+        return None
+
+    print()
+    print("=" * 70)
+    print("3a. CONDITIONAL FRONTIER  (error relative to the encoded grid)")
+    print("=" * 70)
+    print("   sqrt(bias^2 + sd^2) against the exact expectation ON the truncated,")
+    print("   discretised distribution. This isolates what amplitude estimation")
+    print("   does, holding the encoding fixed. It is NOT the error a user sees.")
+    print()
+    cond = build_frontier(lambda r: float(np.hypot(r["bias"], r["sd"])))
+    err_exp = show(cond, "conditional")
+    if err_exp is None:
+        return
+    print()
+    print("   Reference points: ideal amplitude estimation N ~ error^-1.0;")
+    print("   classical Monte Carlo N ~ error^-2.0.")
+    print()
+    print("   The exponent sits between them for a known reason. Minimising")
+    print("   bias ~ c^2 against sd ~ eps/c gives c ~ eps^(1/3) and total error")
+    print("   ~ eps^(2/3); with N ~ 1/eps that is N ~ error^-1.5. Woerner & Egger")
+    print("   (2019) derive this rate analytically as O(M^-2/3) convergence for")
+    print("   the lowest-depth payoff encoding. The fit here is a small-sample")
+    print("   observation qualitatively consistent with it, not a confirmation")
+    print("   of the asymptotic exponent.")
+
+    if analytic is None:
+        print("\n   (summary.json missing; skipping the end-to-end frontier)")
         return
 
-    err_exp, _ = powerlaw([f[0] for f in frontier], [f[1] for f in frontier])
-    n_exp = 1.0 / err_exp
-    print(f"\n   fit: error ~ N^{err_exp:.2f}   i.e.   N ~ error^{n_exp:.2f}")
     print()
-    print("   Reference points:")
-    print("     ideal amplitude estimation   N ~ error^-1.0")
-    print("     classical Monte Carlo        N ~ error^-2.0")
+    print("=" * 70)
+    print("3b. END-TO-END FRONTIER  (error relative to analytic payoff)")
+    print("=" * 70)
+    print("   The same quantity a user would actually be wrong by: truncation and")
+    print("   discretisation included. This is the frontier that matters.")
     print()
-    print("   Why the measured exponent sits between them: bias ~ c^2 and")
-    print("   sd ~ eps/c are minimised together at c ~ eps^(1/3), which makes the")
-    print("   total error ~ eps^(2/3). Since N ~ 1/eps, that gives N ~ error^-1.5.")
-    print("   The payoff linearisation costs half of the quadratic speedup before")
-    print("   a single gate error is considered.")
+    e2e = build_frontier(
+        lambda r: float(np.hypot(abs(r["mean"] - analytic), r["sd"])))
+    show(e2e, "end-to-end")
 
-    sigma = args.payoff_sigma
-    if sigma is None:
-        summary = RESULTS / "summary.json"
-        if summary.exists():
-            data = json.loads(summary.read_text())
-            b = data["classical_baseline"][1]
-            sigma = b["std_error"] * np.sqrt(min(b["n_samples"], 20_000_000))
-    if sigma is None:
-        print("\n   (no classical sigma available; skipping crossover)")
-        return
+    cond_best = min(f[1] for f in cond)
+    e2e_best = min(f[1] for f in e2e)
+    deepest = max(rows, key=lambda r: r["queries"])
+    deepest_e2e = float(np.hypot(abs(deepest["mean"] - analytic), deepest["sd"]))
+    enc = abs(deepest["grid"] - analytic)
+    print()
+    print("   The two frontiers end differently, and that is the point:")
+    print(f"     best conditional error : {cond_best:.4f}")
+    print(f"     best end-to-end error  : {e2e_best:.4f}")
+    print()
+    print(f"   The most expensive configuration in the sweep "
+          f"(nq={deepest['num_qubits']}, eps={deepest['epsilon_target']:g},")
+    print(f"   {deepest['queries']:,.0f} queries) reaches {deepest['bias']:.4f} against its own grid")
+    print(f"   but {deepest_e2e:.4f} against the analytic payoff, because that grid is itself")
+    print(f"   {enc:.4f} away from the true value. It does not appear on the")
+    print("   end-to-end frontier at all: a configuration using 11x fewer queries")
+    print("   is more accurate in the only sense a user cares about.")
+    print()
+    print("   Past a point, additional oracle queries buy nothing. The binding")
+    print("   constraint becomes the classical encoding, and relieving it costs")
+    print("   qubits and circuit width rather than queries.")
 
     print()
     print("=" * 70)
-    print("4. CLASSICAL COMPARISON AND CROSSOVER")
+    print("4. QUERY-SCALING COMPARISON AGAINST CLASSICAL MONTE CARLO")
     print("=" * 70)
-    print(f"   Per-sample payoff std dev: {sigma:.3f}")
-    print(f"   Classical MC needs N = ({sigma:.2f} / error)^2 samples.")
+    print("   Matched target: classical Monte Carlo is costed against the SAME")
+    print("   truncated, discretised distribution amplitude estimation encodes,")
+    print("   using that grid's exact payoff variance. Comparing against the")
+    print("   untruncated lognormal would score the two methods on different")
+    print("   quantities.")
     print()
-    print(f"   {'total err':>11} {'QAE queries':>14} {'MC samples':>14} {'ratio':>9}")
-    for q, err, _ in frontier:
-        n_cl = (sigma / err) ** 2
-        print(f"   {err:>11.4f} {q:>14,.0f} {n_cl:>14,.0f} {q / n_cl:>8.1f}x")
+    print(f"   {'total err':>10} {'nq':>3} {'grid sigma':>11} {'QAE queries':>13} "
+          f"{'MC samples':>12} {'ratio':>8}")
+    comparison = []
+    for q, err, r in cond:
+        sig = grid_payoff_sigma(r["num_qubits"])
+        n_cl = (sig / err) ** 2
+        comparison.append({"queries": q, "error": err,
+                           "num_qubits": r["num_qubits"], "grid_sigma": sig,
+                           "mc_samples": n_cl, "ratio": q / n_cl})
+        print(f"   {err:>10.4f} {r['num_qubits']:>3} {sig:>11.4f} {q:>13,.0f} "
+              f"{n_cl:>12,.0f} {q / n_cl:>7.1f}x")
     print()
-    print("   QAE is behind at every budget measured, on raw counts alone -")
-    print("   and an oracle query is a deep circuit, while an MC sample is one")
-    print("   exponential and one max().")
+    print("   Amplitude estimation needs more oracle queries than Monte Carlo")
+    print("   needs samples at every budget reachable in simulation, and the gap")
+    print("   narrows as precision tightens, consistent with the better exponent.")
+    print()
+    print("   No end-to-end crossover is estimated from this sweep. The end-to-end")
+    print("   frontier reaches an approximation-error floor set by the encoded")
+    print("   distribution before query scaling could dominate, so extrapolating a")
+    print("   crossing point from these data would not be meaningful.")
 
-    q_last, e_last, _ = frontier[-1]
-    A = q_last * e_last ** (-n_exp)      # QAE:       N = A * err^n_exp
-    K = sigma ** 2                        # classical:  N = K * err^-2
-    delta = float(np.exp(np.log(K / A) / (n_exp + 2.0)))
-    print()
-    print(f"   Extrapolated crossover at total error ~ {delta:.2e}")
-    print(f"   = {delta / 7.345 * 1e4:.1f} basis points of the option's expected payoff,")
-    print(f"   where both methods need roughly {K / delta**2:,.0f} operations.")
-    print()
-    print("   Treat this as indicative, not definitive: it extrapolates a fit from")
-    print(f"   {len(frontier)} frontier points on one option at up to "
-          f"{max(r['num_qubits'] for r in rows)} uncertainty qubits, and it counts")
-    print("   oracle queries rather than physical gate time.")
+    (RESULTS / "frontiers.json").write_text(json.dumps({
+        "analytic": analytic,
+        "conditional_frontier": [{"queries": q, "error": e,
+                                  "num_qubits": r["num_qubits"],
+                                  "rescaling_factor": r["rescaling_factor"],
+                                  "epsilon_target": r["epsilon_target"]}
+                                 for q, e, r in cond],
+        "conditional_exponent": err_exp,
+        "end_to_end_frontier": [{"queries": q, "error": e,
+                                 "num_qubits": r["num_qubits"],
+                                 "rescaling_factor": r["rescaling_factor"],
+                                 "epsilon_target": r["epsilon_target"]}
+                                for q, e, r in e2e],
+        "classical_comparison": comparison,
+    }, indent=2))
+    print(f"\n   Wrote frontiers.json to results/")
 
 
 if __name__ == "__main__":

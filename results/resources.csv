@@ -1,4 +1,0 @@
-num_qubits,rescaling_factor,circuit_qubits,gates_2q_ideal,gates_2q_routed,depth_2q_routed,depth_routed,routing_overhead
-3,0.05,7,302,515,393,1400,1.705298013245033
-4,0.05,9,524,1008,752,2568,1.9236641221374047
-5,0.05,11,834,1804,1297,4286,2.1630695443645083

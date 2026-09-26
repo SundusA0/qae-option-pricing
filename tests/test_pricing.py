@@ -148,11 +148,19 @@ def test_smaller_rescaling_factor_reduces_bias():
 
 @pytest.mark.slow
 def test_qae_agrees_with_grid_at_tight_epsilon():
-    """End-to-end: QAE recovers the discretised expectation it is estimating."""
+    """
+    QAE recovers the discretised expectation it is estimating.
+
+    Averaged over five seeds: at c = 0.05 the per-seed spread (~0.22) is much
+    larger than the bias (~0.01), so a single-seed tolerance would have to be
+    loose enough to be meaningless. The mean over five seeds has a standard
+    error near 0.1, and 0.3 is a three-sigma band around it.
+    """
     grid = expected_payoff_grid(SPEC, 4, n_std=N_STD)
-    res = expected_payoff_qae(SPEC, 4, epsilon_target=1e-3,
-                              rescaling_factor=0.05, n_std=N_STD, seed=1000)
-    assert res["estimate"] == pytest.approx(grid, abs=1.0)
+    ests = [expected_payoff_qae(SPEC, 4, epsilon_target=1e-3,
+                                rescaling_factor=0.05, n_std=N_STD,
+                                seed=s)["estimate"] for s in range(1000, 1005)]
+    assert float(np.mean(ests)) == pytest.approx(grid, abs=0.3)
 
 
 @pytest.mark.slow
