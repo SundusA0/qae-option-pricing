@@ -27,7 +27,7 @@ starting point, not a contribution.
 
 This repository adds the experimental workflow: the parameter sweeps, separation
 of encoding error from estimation error with bias distinguished from variance
-across twenty seeds, instrumentation of the IQAE schedule, transpiled resource
+across up to twenty seeds, instrumentation of the IQAE schedule, transpiled resource
 counts, a noise measurement, and the end-to-end frontier reported below.
 
 The goal is to measure these error sources together in one implementation and
@@ -100,10 +100,10 @@ of the mean, per qubit count:
 | 0.05 | 4 | +0.048 | 0.030 | 0.133 |
 | 0.05 | 5 | +0.026 | 0.037 | 0.164 |
 
-Every bias is positive: the linearisation overestimates the payoff. At `c = 0.25`
-and `c = 0.10` it exceeds its standard error many times over at every `nq`. At
-`c = 0.05` it does not — each of the three is within about two standard errors of
-zero, so at this seed count the bias there is not resolved. A power-law fit over
+All observed mean offsets are positive. At `c = 0.25` and `c = 0.10` the positive
+bias is clearly resolved, exceeding its standard error many times over at every
+`nq`. At `c = 0.05` its magnitude and sign are not resolved at the present seed
+count — each of the three is within about two standard errors of zero. A power-law fit over
 the `nq`-averaged values (0.961, 0.123, 0.045) gives `c^1.92`, consistent with the
 quadratic bias expected from a second-order linearisation error; the fit is
 anchored by the two well-determined levels.
@@ -191,8 +191,9 @@ would score the two methods on different quantities.
 
 Amplitude estimation needs more oracle queries than Monte Carlo needs samples at
 every budget reachable in simulation, by a factor of roughly 8 to 60 across the
-tested range. An oracle query is a nine-qubit circuit with hundreds of gates; a
-Monte Carlo sample is one exponential and one `max()`.
+tested range. An oracle query is a 7–11-qubit circuit with 500–1,800 routed
+two-qubit gates in this sweep; a Monte Carlo sample is one exponential and one
+`max()`.
 
 No end-to-end crossover is estimated from this sweep. The end-to-end frontier
 reaches an approximation-error floor set by the encoded distribution before query
