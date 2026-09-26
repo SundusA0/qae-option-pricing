@@ -1,0 +1,74 @@
+{
+  "basis_gates": [
+    "cz",
+    "rz",
+    "sx",
+    "x"
+  ],
+  "per_query_2q_gates": 1804,
+  "gates_A": 324,
+  "schedule": [
+    {
+      "eps": 0.01,
+      "k_max": 4,
+      "n_rounds": 3,
+      "queries": 4096,
+      "deepest_2q": 7540
+    },
+    {
+      "eps": 0.001,
+      "k_max": 70,
+      "n_rounds": 4,
+      "queries": 75776,
+      "deepest_2q": 126604
+    },
+    {
+      "eps": 0.0001,
+      "k_max": 1168,
+      "n_rounds": 5,
+      "queries": 1270784,
+      "deepest_2q": 2107396
+    }
+  ],
+  "k_max_exponent": -1.2326914257242103,
+  "deepest_circuit_2q_measured": 2107396,
+  "tolerable_error_rate_measured": 4.7451926453310154e-07,
+  "crossover_error": 0.00155,
+  "crossover_eps": 7.218141678483631e-07,
+  "crossover_k_max": 513797.94316813216,
+  "crossover_deepest_2q": 926891813.4753104,
+  "tolerable_error_rate_crossover": 1.0788745627718687e-09,
+  "total_2q_gate_executions": 124476000000.0,
+  "profiles": [
+    {
+      "num_qubits": 3,
+      "rescaling_factor": 0.05,
+      "circuit_qubits": 7,
+      "gates_2q_ideal": 302,
+      "gates_2q_routed": 515,
+      "depth_2q_routed": 393,
+      "depth_routed": 1400,
+      "routing_overhead": 1.705298013245033
+    },
+    {
+      "num_qubits": 4,
+      "rescaling_factor": 0.05,
+      "circuit_qubits": 9,
+      "gates_2q_ideal": 524,
+      "gates_2q_routed": 1008,
+      "depth_2q_routed": 752,
+      "depth_routed": 2568,
+      "routing_overhead": 1.9236641221374047
+    },
+    {
+      "num_qubits": 5,
+      "rescaling_factor": 0.05,
+      "circuit_qubits": 11,
+      "gates_2q_ideal": 834,
+      "gates_2q_routed": 1804,
+      "depth_2q_routed": 1297,
+      "depth_routed": 4286,
+      "routing_overhead": 2.1630695443645083
+    }
+  ]
+}
