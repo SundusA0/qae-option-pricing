@@ -1,19 +1,32 @@
 """
-Convert oracle queries into two-qubit gates on a realistic device.
+Convert oracle queries into two-qubit gates, and into a coherence requirement.
 
-The sweep counts oracle queries. A query is not a unit of hardware effort: it
-is one application of the Grover operator Q, which on a real machine becomes
-hundreds of two-qubit gates once the circuit is compiled to a native basis and
-routed onto a fixed connectivity graph.
+The sweep counts oracle queries. A query is not a unit of hardware effort: it is
+one application of the Grover operator Q, which on a real machine becomes
+hundreds of two-qubit gates once compiled to a native basis and routed onto a
+fixed connectivity graph.
 
-This script measures that conversion factor, then asks the only question that
-matters for a fault-tolerance argument: at the query count where amplitude
-estimation would finally overtake classical Monte Carlo, how many two-qubit
-gates must execute without a single one failing?
+Two distinct costs follow, and conflating them is a common error:
+
+  Total gate executions  - every gate run across every shot of every round.
+                           This sets wall-clock time and throughput. It is NOT
+                           a fidelity requirement, because the shots are
+                           independent: a corrupted shot adds noise to the
+                           estimate, it does not invalidate the experiment.
+
+  Deepest single circuit - A followed by Q^k at the largest k the IQAE schedule
+                           reaches. Errors accumulate coherently WITHIN one
+                           circuit, so this is what sets the per-gate error rate
+                           the algorithm can tolerate.
+
+An earlier version of this script demanded that the total survive without a
+single failure. That is the wrong criterion and overstated the requirement by
+several orders of magnitude. The deepest circuit is measured here directly from
+the IQAE power schedule rather than assumed.
 
 Usage:
     python scripts/03_resources.py
-    python scripts/03_resources.py --crossover-queries 69000000
+    python scripts/03_resources.py --crossover-error 1.55e-3
 """
 
 import argparse
@@ -66,10 +79,43 @@ def count(circuit, coupling: CouplingMap | None, seed: int = 11) -> dict:
             "gates_total": sum(ops.values())}
 
 
+def powerlaw(x, y) -> tuple[float, float]:
+    """Least-squares fit of y = a * x**b in log space. Returns (b, a)."""
+    x, y = np.asarray(x, float), np.asarray(y, float)
+    b, loga = np.polyfit(np.log(x), np.log(y), 1)
+    return float(b), float(np.exp(loga))
+
+
+def measure_schedule(nq: int, c: float = 0.05,
+                     eps_levels=(1e-2, 1e-3, 1e-4)) -> list[dict]:
+    """
+    Run IQAE and record the Grover powers it actually chooses.
+
+    IQAE is adaptive: it raises k until the confidence interval is tight enough.
+    The largest k reached is the longest coherent computation the algorithm
+    performs, which is the quantity a fidelity budget should be built on.
+    """
+    from qiskit_algorithms import IterativeAmplitudeEstimation
+    from qiskit.primitives import StatevectorSampler
+
+    prob = build_problem(nq, c)
+    out = []
+    for eps in eps_levels:
+        iae = IterativeAmplitudeEstimation(epsilon_target=eps, alpha=0.05,
+                                           sampler=StatevectorSampler(seed=42))
+        res = iae.estimate(prob)
+        out.append({"eps": eps, "k_max": int(max(res.powers)),
+                    "n_rounds": len(res.powers),
+                    "queries": int(res.num_oracle_queries)})
+    return out
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--crossover-queries", type=float, default=None,
-                    help="query count at the classical crossover (from 02_analyse)")
+    ap.add_argument("--crossover-error", type=float, default=1.55e-3,
+                    help="total error at the classical crossover (from 02_analyse)")
+    ap.add_argument("--crossover-queries", type=float, default=69e6,
+                    help="oracle queries at the crossover (from 02_analyse)")
     ap.add_argument("--configs", default="3,4,5",
                     help="uncertainty qubit counts to profile")
     args = ap.parse_args()
@@ -108,6 +154,12 @@ def main() -> None:
     ref = rows[-1]
     per_query = ref["gates_2q_routed"]
 
+    # State preparation A is run once per circuit; Q is run k times.
+    _ref_prob = build_problem(ref["num_qubits"], ref["rescaling_factor"])
+    _hh = CouplingMap.from_heavy_hex(
+        distance=max(3, 2 * (ref["circuit_qubits"] // 4) + 1))
+    A = count(_ref_prob.state_preparation, _hh)["gates_2q"]
+
     if len(rows) >= 2:
         w = np.log([r["circuit_qubits"] for r in rows])
         g = np.log([r["gates_2q_routed"] for r in rows])
@@ -121,36 +173,72 @@ def main() -> None:
 
     print()
     print("=" * 74)
-    print("2. TOTAL GATE COUNT AT THE CLASSICAL CROSSOVER")
+    print("2. HOW DEEP IS THE DEEPEST CIRCUIT?")
     print("=" * 74)
+    print("   IQAE picks Grover powers adaptively. The largest one it reaches sets")
+    print("   the longest coherent computation, and therefore the error rate the")
+    print("   algorithm can tolerate. Measured from the schedule, not assumed.")
+    print()
+    schedule = measure_schedule(ref["num_qubits"])
+    print(f"   {'eps':>8} {'rounds':>7} {'max k':>8} {'deepest 2Q gates':>18} "
+          f"{'total queries':>14}")
+    for rec in schedule:
+        deep = A + rec["k_max"] * per_query
+        rec["deepest_2q"] = deep
+        print(f"   {rec['eps']:>8g} {rec['n_rounds']:>7} {rec['k_max']:>8,} "
+              f"{deep:>18,} {rec['queries']:>14,}")
 
-    n_cross = args.crossover_queries
-    if n_cross is None:
-        summary = RESULTS / "summary.json"
-        print("   No --crossover-queries given; using 69e6 from the frontier fit.")
-        n_cross = 69e6
+    eps_exp, eps_a = powerlaw([r["eps"] for r in schedule],
+                              [r["k_max"] for r in schedule])
+    print(f"\n   fit: k_max ~ eps^{eps_exp:.2f}")
 
-    total = n_cross * per_query
-    print(f"   Oracle queries needed to overtake classical MC : {n_cross:>16,.0f}")
-    print(f"   Routed two-qubit gates per query (nq={ref['num_qubits']})        : {per_query:>16,}")
-    print(f"   Two-qubit gates in the whole computation       : {total:>16.3e}")
     print()
-    print("   For the result to survive, the expected number of two-qubit errors")
-    print("   across the entire run must be well below one, so the per-gate error")
-    print("   rate must satisfy  p << 1 / (total gates).")
+    print("=" * 74)
+    print("3. TWO DIFFERENT COSTS, OFTEN CONFLATED")
+    print("=" * 74)
+    deepest = schedule[-1]
+    p_req = 1.0 / deepest["deepest_2q"]
+    total_gates = args.crossover_queries * per_query
+    print(f"   At the deepest configuration actually executed (eps={deepest['eps']:g}):")
+    print(f"     deepest circuit        : {deepest['deepest_2q']:>14,} 2Q gates")
+    print(f"     tolerable error rate   : p << {p_req:.2e}")
     print()
-    required = 1.0 / total
-    print(f"   Required two-qubit error rate : p << {required:.2e}")
+    print(f"   Extrapolated to the classical crossover (total error "
+          f"{args.crossover_error:g}):")
+    # total error ~ eps^(2/3) calibrated on the deepest measured point
+    ref_err = 0.0415
+    const = ref_err / deepest["eps"] ** (2.0 / 3.0)
+    eps_cross = (args.crossover_error / const) ** 1.5
+    k_cross = eps_a * eps_cross ** eps_exp
+    deep_cross = A + k_cross * per_query
+    p_cross = 1.0 / deep_cross
+    print(f"     implied eps            : {eps_cross:>14.2e}")
+    print(f"     implied max k          : {k_cross:>14,.0f}")
+    print(f"     deepest circuit        : {deep_cross:>14.2e} 2Q gates")
+    print(f"     tolerable error rate   : p << {p_cross:.2e}")
     print()
-    print(f"   {'device generation':<34} {'2Q error':>10} {'gap':>14}")
-    for name, p in [("current superconducting (~2025)", 2e-3),
-                    ("optimistic near-term", 1e-4),
-                    ("early fault-tolerant logical", 1e-8)]:
-        print(f"   {name:<34} {p:>10.0e} {p / required:>13,.0f}x")
+    print(f"   Separately, total gate EXECUTIONS across all shots and rounds:")
+    print(f"     {total_gates:.2e} 2Q gate-executions")
+    print("   This is a throughput and wall-clock cost, not a fidelity requirement.")
+    print("   The shots are independent; a corrupted shot adds variance to the")
+    print("   estimate rather than invalidating the run.")
     print()
-    print("   The rightmost column is how much better the error rate must get.")
-    print("   Error correction closes this, but the logical-qubit overhead is the")
-    print("   cost that any serious quantum-finance proposal has to price in.")
+    print(f"   {'device generation':<34} {'2Q error':>10} {'vs deepest run':>18}")
+    for name, pdev in [("current superconducting (~2025)", 2e-3),
+                       ("optimistic near-term", 1e-4),
+                       ("early fault-tolerant logical", 1e-8)]:
+        ratio = pdev / p_req
+        note = f"{ratio:,.0f}x too high" if ratio >= 1 else f"{1 / ratio:,.0f}x headroom"
+        print(f"   {name:<34} {pdev:>10.0e} {note:>18}")
+    print()
+    print("   Consistency with the noise study: 04_noise.py maximises the useful")
+    print("   gain and finds an optimal Grover power k* = 1/(p*Q). Substituting")
+    print(f"   p = {p_req:.1e} gives k* = {1.0 / (p_req * per_query):,.0f}, matching the measured schedule")
+    print(f"   maximum of {deepest['k_max']:,}. Note this is close to an algebraic identity")
+    print("   rather than an independent confirmation: both express the same")
+    print("   statement, that useful depth is capped near 1/(p*Q). It is worth")
+    print("   stating because the two scripts arrive at it by different routes -")
+    print("   one from the IQAE schedule, one from a fidelity-weighted optimum.")
 
     out = RESULTS / "resources.csv"
     with open(out, "w", newline="") as fh:
@@ -159,8 +247,16 @@ def main() -> None:
         w.writerows(rows)
     (RESULTS / "resources.json").write_text(json.dumps({
         "basis_gates": BASIS, "per_query_2q_gates": per_query,
-        "crossover_queries": n_cross, "total_2q_gates": total,
-        "required_2q_error_rate": required, "profiles": rows,
+        "gates_A": A, "schedule": schedule,
+        "k_max_exponent": eps_exp,
+        "deepest_circuit_2q_measured": deepest["deepest_2q"],
+        "tolerable_error_rate_measured": p_req,
+        "crossover_error": args.crossover_error,
+        "crossover_eps": eps_cross, "crossover_k_max": k_cross,
+        "crossover_deepest_2q": deep_cross,
+        "tolerable_error_rate_crossover": p_cross,
+        "total_2q_gate_executions": total_gates,
+        "profiles": rows,
     }, indent=2))
     print(f"\n   Wrote resources.csv and resources.json to results/")
 
