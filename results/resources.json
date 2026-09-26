@@ -1,0 +1,44 @@
+{
+  "basis_gates": [
+    "cz",
+    "rz",
+    "sx",
+    "x"
+  ],
+  "per_query_2q_gates": 1804,
+  "crossover_queries": 69000000.0,
+  "total_2q_gates": 124476000000.0,
+  "required_2q_error_rate": 8.03367717471641e-12,
+  "profiles": [
+    {
+      "num_qubits": 3,
+      "rescaling_factor": 0.05,
+      "circuit_qubits": 7,
+      "gates_2q_ideal": 302,
+      "gates_2q_routed": 515,
+      "depth_2q_routed": 393,
+      "depth_routed": 1400,
+      "routing_overhead": 1.705298013245033
+    },
+    {
+      "num_qubits": 4,
+      "rescaling_factor": 0.05,
+      "circuit_qubits": 9,
+      "gates_2q_ideal": 524,
+      "gates_2q_routed": 1008,
+      "depth_2q_routed": 752,
+      "depth_routed": 2568,
+      "routing_overhead": 1.9236641221374047
+    },
+    {
+      "num_qubits": 5,
+      "rescaling_factor": 0.05,
+      "circuit_qubits": 11,
+      "gates_2q_ideal": 834,
+      "gates_2q_routed": 1804,
+      "depth_2q_routed": 1297,
+      "depth_routed": 4286,
+      "routing_overhead": 2.1630695443645083
+    }
+  ]
+}
