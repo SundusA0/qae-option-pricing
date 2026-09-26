@@ -67,14 +67,21 @@ def main() -> None:
     rows = load(Path(args.csv))
     eps_levels = sorted({r["epsilon_target"] for r in rows})
     c_levels = sorted({r["rescaling_factor"] for r in rows}, reverse=True)
-    tight = min(e for e in eps_levels if e <= 1e-3) if any(
-        e <= 1e-3 for e in eps_levels) else min(eps_levels)
+    # Reference epsilon for the bias and spread fits: the tightest level that
+    # is present for at least two rescaling factors. A level measured at only
+    # one c cannot support a fit, however precise it is.
+    coverage = {e: len({r["rescaling_factor"] for r in rows
+                        if r["epsilon_target"] == e}) for e in eps_levels}
+    usable = [e for e in eps_levels if coverage[e] >= 2]
+    tight = min(usable) if usable else min(eps_levels)
 
     print("=" * 70)
     print("1. BIAS vs RESCALING FACTOR")
     print("=" * 70)
-    print(f"   Measured at eps={tight:g}, where the spread is small enough that")
-    print("   the mean is a meaningful estimate of the systematic offset.")
+    print(f"   Measured at eps={tight:g}, the tightest level covering "
+          f"{coverage[tight]} rescaling factors.")
+    print("   At looser epsilon the spread swamps the mean; at tighter epsilon")
+    print("   the sweep only probes one c, which cannot support a fit.")
     print()
     cs, bs = [], []
     for c in c_levels:
@@ -98,7 +105,7 @@ def main() -> None:
     print("   amplitude precision maps to a payoff error that grows as c shrinks.")
     print()
     print(f"   {'c':>6}" + "".join(f"{'eps=' + format(e, 'g'):>14}" for e in eps_levels)
-          + f"{'sd * c':>12}")
+          + f"{'sd*c @' + format(tight, 'g'):>14}")
     for c in c_levels:
         cells = []
         for e in eps_levels:
@@ -108,7 +115,7 @@ def main() -> None:
         at_tight = [r["sd"] for r in rows
                     if r["rescaling_factor"] == c and r["epsilon_target"] == tight]
         prod = statistics.fmean(at_tight) * c if at_tight else float("nan")
-        print(f"   {c:>6}" + "".join(f"{v:>14.4f}" for v in cells) + f"{prod:>12.4f}")
+        print(f"   {c:>6}" + "".join(f"{v:>14.4f}" for v in cells) + f"{prod:>14.4f}")
     print("\n   The last column is roughly constant, so sd ~ eps / c.")
 
     print()
