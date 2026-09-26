@@ -3,8 +3,8 @@
 Quantum amplitude estimation (QAE) is a standard proposal for accelerating
 derivative pricing, on the strength of a quadratic speedup over classical Monte
 Carlo. This repository reproduces its known behaviour on a vanilla European call,
-measures each error source separately, and follows the consequences through to
-circuits and devices.
+measures the main error sources, and follows the consequences through to circuits
+and devices.
 
 ## What this is
 
@@ -25,10 +25,10 @@ provides the lognormal loading, the truncation, the discretisation, the linearis
 payoff with its rescaling factor, and iterative amplitude estimation. That is the
 starting point, not a contribution.
 
-This repository adds the experimental workflow: the parameter sweeps, the separation of
-four error sources with bias distinguished from variance across seeds, the
-instrumentation of the IQAE schedule, the transpiled resource counts, the noise
-measurement, and the end-to-end frontier reported below.
+This repository adds the experimental workflow: the parameter sweeps, separation
+of encoding error from estimation error with bias distinguished from variance
+across twenty seeds, instrumentation of the IQAE schedule, transpiled resource
+counts, a noise measurement, and the end-to-end frontier reported below.
 
 The goal is to measure these error sources together in one implementation and
 identify which constraint dominates in practice. The European call has a
@@ -36,7 +36,7 @@ closed-form Black–Scholes reference, which is used as the analytic baseline.
 
 ---
 
-## The four error sources
+## The error sources
 
 | # | Source | Controlled by | Shrinks with more queries? |
 |---|---|---|---|
@@ -49,6 +49,14 @@ Sources 1–3 are encoding and modelling errors rather than amplitude-estimation
 sampling errors. Increasing the number of AE queries does not reduce them;
 reducing them requires changing the encoded model — increasing grid resolution,
 widening the truncation window, or using a more accurate payoff representation.
+
+Sources 1 and 2 are measured together here, as the gap between the exact
+expectation on the encoded grid and the analytic value. That gap includes
+truncation, renormalisation of the truncated distribution, and discretisation;
+this repository does not separate them with a continuous truncated reference.
+`n_std` is measured in standard deviations of `S_T` in price space, following the
+Qiskit tutorial, not in log-price space; the lognormal is asymmetric, so the two
+tails are not cut at equal probability.
 
 ### Truncation and discretisation are coupled
 
@@ -76,23 +84,30 @@ suggest three qubits suffice.
 
 ### Bias and spread respond oppositely to `c`
 
-Five seeds per configuration, so a systematic offset can be distinguished from a
-lucky draw. At `ε = 10⁻³`:
+Twenty seeds per configuration, so a systematic offset can be distinguished from
+sampling noise. At `ε = 10⁻³`, averaged over `nq ∈ {3, 4, 5}`:
 
-| `c` | bias | spread (sd) | sd × c |
+| `c` | bias | s.e. of bias | spread (sd) |
 |---|---|---|---|
-| 0.25 | 0.9559 | 0.0253 | 0.0063 |
-| 0.10 | 0.1818 | 0.0960 | 0.0096 |
-| 0.05 | 0.0412 | 0.2265 | 0.0113 |
+| 0.25 | 0.961 | 0.004 | 0.018 |
+| 0.10 | 0.123 | 0.022 | 0.098 |
+| 0.05 | 0.045 | 0.032 | 0.142 |
 
-Bias fits `c¹·⁹⁵` over these three values, consistent with a second-order
-linearisation error. The near-constant `sd × c` column indicates `sd ~ ε/c`, as
-expected when the amplitude signal is proportional to `c`. Reducing `c` lowers the
-bias and raises the sampling error. This is the trade-off Woerner & Egger analyse.
+At `c = 0.25` and `c = 0.10` the bias is many standard errors from zero. At
+`c = 0.05` it is not: 0.045 ± 0.032 is compatible with zero at this seed count.
+A power-law fit over the three values gives `c^1.92`, consistent with the
+quadratic bias expected from a second-order linearisation error; the fit is
+anchored by the two well-determined points.
+
+The spread increases as `c` decreases, as expected when the amplitude signal is
+proportional to `c`. It does not follow a clean `1/c` law over these three points
+(`sd × c` ranges from 0.0046 to 0.0098), partly because IQAE adapts its query
+count to each configuration. Reducing `c` lowers the bias and raises the sampling
+error; this is the trade-off Woerner & Egger analyse.
 
 A single seed is insufficient at these parameter values because the between-seed
-variance is large: at `c = 0.05, ε = 10⁻²` the spread across seeds is 2.48, larger
-than the bias being measured.
+variance is large: at `c = 0.05, ε = 10⁻²` the spread across seeds is 2.3, an
+order of magnitude larger than the bias being measured.
 
 ---
 
@@ -106,21 +121,21 @@ classical Monte Carlo and `O(M^−1)` for ideal QAE.
 ### Error relative to the encoded grid
 
 This holds the encoding fixed and isolates the amplitude-estimation contribution.
+Total error is `√(bias² + sd²)`.
 
 | oracle queries | total error | configuration |
 |---|---|---|
-| 3,277 | 2.8367 | nq=5, c=0.05, ε=10⁻² |
-| 4,506 | 2.1174 | nq=3, c=0.10, ε=10⁻² |
-| 5,325 | 1.2519 | nq=3, c=0.25, ε=10⁻² |
-| 54,682 | 0.2158 | nq=5, c=0.05, ε=10⁻³ |
-| 79,667 | 0.1758 | nq=4, c=0.10, ε=10⁻³ |
-| 84,173 | 0.1565 | nq=5, c=0.10, ε=10⁻³ |
-| 912,589 | 0.0415 | nq=4, c=0.05, ε=10⁻⁴ |
+| 3,277 | 1.7273 | nq=5, c=0.10, ε=10⁻² |
+| 5,018 | 1.0112 | nq=3, c=0.25, ε=10⁻² |
+| 57,754 | 0.1751 | nq=3, c=0.10, ε=10⁻³ |
+| 59,546 | 0.1461 | nq=5, c=0.10, ε=10⁻³ |
+| 70,605 | 0.1416 | nq=4, c=0.05, ε=10⁻³ |
+| 966,451 | 0.0437 | nq=4, c=0.05, ε=10⁻⁴ |
 
-Empirical exponent −1.32, qualitatively consistent with the −1.5 the trade-off
-predicts. Seven points on one option over a limited range does not measure an
-asymptotic exponent; the gap is the size expected from constants, discrete
-parameter choices, and frontier selection at finite scale.
+Empirical exponent **−1.53** over six frontier points, against the −1.5 the
+trade-off predicts. The agreement is closer than a six-point fit on one option
+can justify, and should be read as qualitatively consistent rather than as a
+measurement of the asymptotic exponent.
 
 ### Error relative to the analytic payoff (Black–Scholes reference)
 
@@ -130,22 +145,21 @@ expectation `E[max(S_T − K, 0)]`; the Black–Scholes price is that times
 
 | oracle queries | total error | configuration |
 |---|---|---|
-| 3,277 | 2.8389 | nq=5, c=0.05, ε=10⁻² |
-| 4,506 | 2.4882 | nq=3, c=0.10, ε=10⁻² |
-| 5,325 | 1.4471 | nq=5, c=0.25, ε=10⁻² |
-| 6,144 | 1.3928 | nq=4, c=0.25, ε=10⁻² |
-| 54,682 | 0.2163 | nq=5, c=0.05, ε=10⁻³ |
-| 84,173 | 0.1603 | nq=5, c=0.10, ε=10⁻³ |
+| 3,277 | 1.7130 | nq=4, c=0.10, ε=10⁻² |
+| 5,222 | 1.0856 | nq=5, c=0.25, ε=10⁻² |
+| 57,754 | 0.9133 | nq=3, c=0.10, ε=10⁻³ |
+| 59,546 | 0.1493 | nq=5, c=0.10, ε=10⁻³ |
 
 The most expensive configuration in the sweep is absent from this frontier. At
-912,589 queries it reaches 0.0408 against its own grid but 0.1726 against
-the analytic payoff, because that grid — 4 uncertainty qubits at `n_std = 5` — sits
-0.1317 from the true value. A configuration using eleven times fewer queries has
+966,451 queries it reaches 0.0395 against its own grid but 0.1722 against the
+analytic payoff, because that grid — 4 uncertainty qubits at `n_std = 5` — sits
+0.1317 from the true value. A configuration using sixteen times fewer queries has
 lower end-to-end error.
 
 At this point encoding error rather than amplitude-estimation error becomes the
 dominant limitation, and reducing it requires more qubits or a wider window rather
-than more queries.
+than more queries. No exponent is quoted for this frontier: it has four points
+and reaches a floor.
 
 ### Query-scaling comparison against classical Monte Carlo
 
@@ -156,16 +170,17 @@ would score the two methods on different quantities.
 
 | total error | nq | grid σ | QAE queries | MC samples | ratio |
 |---|---|---|---|---|---|
-| 2.8367 | 5 | 12.8454 | 3,277 | 21 | 159.8× |
-| 1.2519 | 3 | 12.4543 | 5,325 | 99 | 53.8× |
-| 0.2158 | 5 | 12.8454 | 54,682 | 3,544 | 15.4× |
-| 0.1565 | 5 | 12.8454 | 84,173 | 6,735 | 12.5× |
-| 0.0415 | 4 | 12.7779 | 912,589 | 94,948 | 9.6× |
+| 1.7273 | 5 | 12.8454 | 3,277 | 55 | 59× |
+| 1.0112 | 3 | 12.4543 | 5,018 | 152 | 33× |
+| 0.1751 | 3 | 12.4543 | 57,754 | 5,061 | 11× |
+| 0.1461 | 5 | 12.8454 | 59,546 | 7,735 | 8× |
+| 0.1416 | 4 | 12.7779 | 70,605 | 8,147 | 9× |
+| 0.0437 | 4 | 12.7779 | 966,451 | 85,407 | 11× |
 
 Amplitude estimation needs more oracle queries than Monte Carlo needs samples at
-every budget reachable in simulation. The ratio narrows as precision tightens,
-consistent with the better exponent. An oracle query is a nine-qubit circuit with
-hundreds of gates; a Monte Carlo sample is one exponential and one `max()`.
+every budget reachable in simulation, by a factor of roughly 8 to 60 across the
+tested range. An oracle query is a nine-qubit circuit with hundreds of gates; a
+Monte Carlo sample is one exponential and one `max()`.
 
 No end-to-end crossover is estimated from this sweep. The end-to-end frontier
 reaches an approximation-error floor set by the encoded distribution before query
@@ -187,8 +202,14 @@ devices. Other architectures, including square-lattice designs, route differentl
 | 5 | 11 | 834 | 1,804 | 1,297 | 2.2× |
 
 Routing overhead increases noticeably with circuit width across these three
-points. Three small circuits are not enough to infer an asymptotic routing law, so
-no exponent is fitted.
+points. Three small circuits are not enough to infer an asymptotic routing law,
+so no exponent is fitted.
+
+These counts describe Qiskit's implementation of the oracle. The lognormal loader
+prepares the distribution with a generic amplitude-initialisation routine whose
+cost is not known to scale efficiently with qubit count; at 3–5 uncertainty
+qubits it is manageable, but the figures below should not be read as the cost of
+a scalable state-preparation method. See Limitations.
 
 ### Total workload vs. single-circuit depth
 
@@ -198,13 +219,16 @@ algorithm at `nq = 5` (`A` = 324, `Q` = 1,804 routed two-qubit gates):
 | `ε` | rounds | max `k` | deepest circuit (2Q gates) | total queries |
 |---|---|---|---|---|
 | 10⁻² | 3 | 4 | 7,540 | 4,096 |
-| 10⁻³ | 4 | 70 | 126,604 | 75,776 |
-| 10⁻⁴ | 5 | 1,168 | 2,107,396 | 1,270,784 |
+| 10⁻³ | 4 | 74 | 133,820 | 79,872 |
+| 10⁻⁴ | 5 | 1,213 | 2,188,576 | 1,320,960 |
 
-with `k_max ~ ε^−1.23` over this range.
+with `k_max ~ ε^−1.24` over this range. The deepest-circuit column is estimated
+as `A + k_max·Q` from independently transpiled blocks; the composed circuit is
+not transpiled whole, so compiler optimisation across block boundaries is not
+accounted for.
 
 Q-operator two-qubit gate executions across all oracle calls reach approximately
-2.3 × 10⁹ in the tightest run, excluding state-preparation executions and
+2.4 × 10⁹ in the tightest run, excluding state-preparation executions and
 single-qubit gates. That figure sets throughput and wall-clock time. It does not
 set a fidelity requirement, because the shots are independent: a corrupted shot
 adds variance to the estimate rather than invalidating the run. The per-gate error
@@ -215,13 +239,13 @@ circuit execution.
 Under an independent-error model, `p · G₂Q ≪ 1` is a deliberately conservative
 zero-two-qubit-fault proxy. It is not a fault-tolerance threshold or a prediction
 of algorithmic failure probability. At the tightest precision run (ε = 10⁻⁴) the
-deepest circuit is 2.1 × 10⁶ two-qubit gates, so the proxy is 4.8 × 10⁻⁷:
+deepest circuit is 2.2 × 10⁶ two-qubit gates, so the proxy is 4.6 × 10⁻⁷:
 
 | 2Q error rate | vs zero-fault proxy |
 |---|---|
-| 2 × 10⁻³ | 4,215× above |
-| 1 × 10⁻³ | 2,107× above |
-| 1 × 10⁻⁴ | 211× above |
+| 2 × 10⁻³ | 4,377× above |
+| 1 × 10⁻³ | 2,189× above |
+| 1 × 10⁻⁴ | 219× above |
 | 1 × 10⁻⁶ | 2× above |
 
 Chakrabarti et al. (2021) give fault-tolerant resource estimates for derivative
@@ -266,10 +290,10 @@ That noise eventually saturates amplitude estimation is established (Tanaka et a
 2021; Herbert et al. 2021); what is measured here is where the heuristic places the
 limit for this circuit.
 
-`k* ≈ 1/(pQ)` and the single-circuit bound `p ≪ 1/(A + k_max·Q)` are close to algebraic
-restatements of one another. They are reported separately because the two scripts
-reach the limit by different routes, and agreement checks that neither is
-mis-instrumented. Since the ceiling depends on the product `pQ`, halving oracle
+`k* ≈ 1/(pQ)` and the single-circuit bound `p ≪ 1/(A + k_max·Q)` are close to
+algebraic restatements of one another. They are reported separately because the
+two scripts reach the limit by different routes, and agreement checks that neither
+is mis-instrumented. Since the ceiling depends on the product `pQ`, halving oracle
 cost is worth as much as halving the error rate.
 
 ---
@@ -278,13 +302,14 @@ cost is worth as much as halving the error rate.
 
 ```bash
 python -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-lock.txt      # exact resolved environment
+# pip install -r requirements.txt         # looser direct-dependency spec
 
-python -m pytest tests/ -q               # 15 tests, ~35 s
+python -m pytest tests/ -q               # 15 tests, ~40 s
 python scripts/01_validate.py --quick    # ~20 s
-python scripts/01_validate.py            # ~6 min, 19 configs x 5 seeds
+python scripts/01_validate.py            # ~40 min, 19 configs x 20 seeds
 python scripts/02_analyse.py             # conditional/end-to-end frontiers, matched classical comparison
-python scripts/03_resources.py           # circuits, schedule depth, error budget
+python scripts/03_resources.py           # circuits, schedule depth, error proxy
 python scripts/04_noise.py               # noise threshold, ~4 min
 ```
 
@@ -293,6 +318,12 @@ Black–Scholes closed form, exact expectation on the discretised grid, classica
 Monte Carlo, and amplitude estimation. Discrepancies can then be attributed to a
 specific source.
 
+**Seeding.** `StatevectorSampler` is seeded with a `numpy.random.Generator`, not
+an integer. With an integer seed the sampler restarts its random stream on every
+`run()` call, so IQAE's successive rounds reuse the same draws and the within-run
+statistics are not what they appear to be. All QAE results here were produced
+with `Generator` seeding.
+
 Tests cover the Black–Scholes anchor, put–call parity, Monte Carlo convergence and
 `√N` scaling, grid normalisation, the truncation/qubit coupling, and that reducing
 `c` reduces bias when averaged over seeds. Reference outputs under
@@ -300,10 +331,9 @@ Tests cover the Black–Scholes anchor, put–call parity, Monte Carlo convergen
 which is ignored.
 
 **Environment.** Python 3.12, `qiskit==2.5.2`, `qiskit-aer==0.17.2`,
-`qiskit-algorithms==0.4.0`, `qiskit-finance==0.4.1`. `requirements.txt` lists
-direct dependencies; `requirements-lock.txt` is the resolved environment. The
-encoding-error table and the `--quick` validation sweep were run on macOS and
-Linux and matched to six decimal places, including oracle query counts.
+`qiskit-algorithms==0.4.0`, `qiskit-finance==0.4.1`. The encoding-error table is
+deterministic and was checked on macOS and Linux; QAE results are seeded and
+should reproduce on a given platform.
 
 **Compatibility note.** The Qiskit Finance tutorials use
 `qiskit_aer.primitives.Sampler`, which fails inside `IterativeAmplitudeEstimation`
@@ -316,12 +346,22 @@ successfully"; `SamplerV2` fails the same way.
 ## Limitations
 
 - One option (S₀=100, K=105, σ=0.20, r=0.03, T=1) at up to 5 uncertainty qubits.
-- Fitted exponents are small-sample observations without uncertainties, not
-  characterised measurements of asymptotic rates.
-- The zero-fault proxy assumes independent error accumulation and that one expected
-  error spoils a circuit. It ignores error mitigation, algorithmic tolerance to
-  modest infidelity, and logical failure rates and decoding under error
-  correction.
+  Nothing here establishes behaviour across moneyness, volatility or maturity.
+- Twenty seeds per configuration is enough to resolve the bias at `c ≥ 0.10` but
+  not at `c = 0.05`. Fitted exponents are small-sample observations without
+  confidence intervals, not characterised measurements of asymptotic rates.
+- Truncation and discretisation are measured jointly as encoding error, not
+  separated with a continuous truncated-distribution reference.
+- The resource counts describe Qiskit's generic amplitude-initialisation loader,
+  whose cost does not scale efficiently with qubit count. They characterise this
+  implementation, not a scalable state-preparation method. State preparation,
+  payoff mapping and the Grover reflection are not costed separately.
+- The deepest-circuit count is an additive estimate from separately transpiled
+  blocks, not a transpilation of the composed circuit.
+- The zero-fault proxy assumes independent error accumulation and that one
+  expected error spoils a circuit. It ignores error mitigation, algorithmic
+  tolerance to modest infidelity, and logical failure rates and decoding under
+  error correction.
 - Depolarising noise only, uniform, with no measurement error, crosstalk, leakage
   or idle decoherence.
 - Noise measured to k = 4 at 3 uncertainty qubits; larger `k` extrapolated through
@@ -340,3 +380,7 @@ successfully"; `SamplerV2` fails the same way.
 - Grinko et al., *Iterative quantum amplitude estimation*, npj Quantum Information 7, 52 (2021)
 - Tanaka et al., *Amplitude estimation via maximum likelihood on noisy quantum computer*, Quantum Inf. Process. 20, 293 (2021)
 - Herbert et al., *Noise-Aware Quantum Amplitude Estimation*, arXiv:2109.04840 (2021)
+
+## License
+
+MIT. See `LICENSE`.

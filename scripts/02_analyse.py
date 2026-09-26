@@ -150,7 +150,8 @@ def main() -> None:
                     if r["rescaling_factor"] == c and r["epsilon_target"] == tight]
         prod = statistics.fmean(at_tight) * c if at_tight else float("nan")
         print(f"   {c:>6}" + "".join(f"{v:>14.4f}" for v in cells) + f"{prod:>14.4f}")
-    print("\n   The last column is roughly constant, so sd ~ eps / c.")
+    print("\n   Spread increases as c decreases. The last column is not constant")
+    print("   enough to support a clean sd ~ eps/c law from these data.")
 
     summary_path = first_existing(RESULTS / "summary.json",
                                   RESULTS / "reference" / "summary.json")
@@ -232,8 +233,10 @@ def main() -> None:
           f"(nq={deepest['num_qubits']}, eps={deepest['epsilon_target']:g},")
     print(f"   {deepest['queries']:,.0f} queries) reaches {deepest['bias']:.4f} against its own grid")
     print(f"   but {deepest_e2e:.4f} against the analytic payoff, because that grid is itself")
+    best_e2e = min(e2e, key=lambda f: f[1])
+    ratio = deepest["queries"] / best_e2e[0]
     print(f"   {enc:.4f} away from the true value. It does not appear on the")
-    print("   end-to-end frontier: a configuration using 11x fewer queries has")
+    print(f"   end-to-end frontier: a configuration using {ratio:.0f}x fewer queries has")
     print("   lower end-to-end error.")
     print()
     print("   At this point encoding error rather than amplitude-estimation error")
@@ -262,9 +265,10 @@ def main() -> None:
         print(f"   {err:>10.4f} {r['num_qubits']:>3} {sig:>11.4f} {q:>13,.0f} "
               f"{n_cl:>12,.0f} {q / n_cl:>7.1f}x")
     print()
+    lo, hi = min(c["ratio"] for c in comparison), max(c["ratio"] for c in comparison)
     print("   Amplitude estimation needs more oracle queries than Monte Carlo")
-    print("   needs samples at every budget reachable in simulation, and the gap")
-    print("   narrows as precision tightens, consistent with the better exponent.")
+    print(f"   needs samples at every budget reachable in simulation, by a factor")
+    print(f"   of roughly {lo:.0f}x to {hi:.0f}x across the tested range.")
     print()
     print("   No end-to-end crossover is estimated from this sweep. The end-to-end")
     print("   frontier reaches an approximation-error floor set by the encoded")

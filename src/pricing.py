@@ -50,9 +50,9 @@ def expected_payoff_grid(spec: OptionSpec, num_qubits: int, n_std: float = 3.0) 
     """
     Exact expected payoff on the 2**num_qubits discretised grid.
 
-    This isolates discretisation error: the gap between this and
-    expected_payoff_analytic is what the encoding costs you, before
-    any estimation error enters.
+    The gap between this and expected_payoff_analytic is the encoding error:
+    truncation to the window, renormalisation, and discretisation onto the
+    grid, taken together. It enters before any estimation error does.
     """
     from qiskit_finance.circuit.library import LogNormalDistribution
 
@@ -106,10 +106,13 @@ def expected_payoff_qae(
         uncertainty_model=dist,
     )
     problem = app.to_estimation_problem()
+    # A Generator, not an int: with an integer seed StatevectorSampler restarts
+    # the random stream on every run() call, so IQAE's successive rounds would
+    # reuse the same draws. A Generator advances between calls.
     iae = IterativeAmplitudeEstimation(
         epsilon_target=epsilon_target,
         alpha=alpha,
-        sampler=StatevectorSampler(seed=seed),
+        sampler=StatevectorSampler(seed=np.random.default_rng(seed)),
     )
     result = iae.estimate(problem)
     lo, hi = app.interpret_confidence_interval(result) if hasattr(

@@ -96,8 +96,9 @@ def measure_schedule(nq: int, c: float = 0.05,
     prob = build_problem(nq, c)
     out = []
     for eps in eps_levels:
-        iae = IterativeAmplitudeEstimation(epsilon_target=eps, alpha=0.05,
-                                           sampler=StatevectorSampler(seed=42))
+        iae = IterativeAmplitudeEstimation(
+            epsilon_target=eps, alpha=0.05,
+            sampler=StatevectorSampler(seed=np.random.default_rng(42)))
         res = iae.estimate(prob)
         out.append({"eps": eps, "k_max": int(max(res.powers)),
                     "n_rounds": len(res.powers),
@@ -167,6 +168,9 @@ def main() -> None:
     print("   for the error proxy below. Measured from the schedule, not assumed.")
     print()
     schedule = measure_schedule(ref["num_qubits"])
+    print("   'deepest 2Q gates' is estimated as A + k_max*Q from independently")
+    print("   transpiled blocks; the composed circuit is not transpiled whole.")
+    print()
     print(f"   {'eps':>8} {'rounds':>7} {'max k':>8} {'deepest 2Q gates':>18} "
           f"{'total queries':>14}")
     for rec in schedule:

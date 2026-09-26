@@ -66,8 +66,8 @@ def classical_baseline(spec: OptionSpec, target_se: float, seed: int = 0) -> dic
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--quick", action="store_true", help="coarse, fast sweep")
-    parser.add_argument("--seeds", type=int, default=5,
-                        help="repeats per configuration (default 5)")
+    parser.add_argument("--seeds", type=int, default=20,
+                        help="repeats per configuration (default 20)")
     args = parser.parse_args()
 
     RESULTS.mkdir(exist_ok=True)
@@ -127,11 +127,12 @@ def main() -> None:
     print("=" * 68)
     print(f"QAE SWEEP  ({len(configs)} configurations x {n_seeds} seeds, n_std={N_STD})")
     print("=" * 68)
-    print("  bias = |mean(estimate) - grid exact|, the part sampling cannot remove")
-    print("  sd   = spread across seeds, the part that shrinks as eps tightens")
+    print("  bias = |mean(estimate) - grid exact|; se = sd/sqrt(n) is its")
+    print("  standard error. A bias smaller than its se is not distinguishable")
+    print("  from zero at that seed count.")
     print()
-    print(f"  {'nq':>3} {'c':>6} {'eps':>7} {'mean':>9} {'bias':>9} {'sd':>9} "
-          f"{'queries':>9} {'sec':>6}")
+    print(f"  {'nq':>3} {'c':>6} {'eps':>7} {'n':>3} {'mean':>9} {'bias':>8} "
+          f"{'se':>7} {'sd':>8} {'queries':>9} {'sec':>6}")
 
     csv_path = RESULTS / ("validation_quick.csv" if args.quick else "validation.csv")
     rows = []
@@ -147,7 +148,9 @@ def main() -> None:
             grid = expected_payoff_grid(spec, nq, n_std=N_STD)
             ests, queries = [], []
             t0 = time.perf_counter()
-            for seed in range(n_seeds):
+            # the single 1e-4 probe is ~15x the cost of the rest; cap its seeds
+            n_here = min(n_seeds, 5) if eps < 1e-3 else n_seeds
+            for seed in range(n_here):
                 r = expected_payoff_qae(spec, nq, epsilon_target=eps,
                                         rescaling_factor=c, n_std=N_STD,
                                         seed=1000 + seed)
@@ -166,16 +169,18 @@ def main() -> None:
             dt = time.perf_counter() - t0
             mean = statistics.fmean(ests)
             sd = statistics.stdev(ests) if len(ests) > 1 else 0.0
+            se = sd / (len(ests) ** 0.5) if len(ests) > 1 else float("nan")
             rows.append({
                 "n_std": N_STD, "num_qubits": nq, "rescaling_factor": c,
-                "epsilon_target": eps, "n_seeds": n_seeds,
+                "epsilon_target": eps, "n_seeds": len(ests),
                 "mean_estimate": mean, "grid_exact": grid,
-                "bias": abs(mean - grid), "sd": sd,
+                "bias": abs(mean - grid), "se": se, "sd": sd,
                 "mean_oracle_queries": statistics.fmean(queries),
                 "seconds": dt,
             })
-            print(f"  {nq:>3} {c:>6} {eps:>7} {mean:>9.5f} {abs(mean - grid):>9.5f} "
-                  f"{sd:>9.5f} {statistics.fmean(queries):>9.0f} {dt:>6.1f}")
+            print(f"  {nq:>3} {c:>6} {eps:>7} {len(ests):>3} {mean:>9.5f} "
+                  f"{abs(mean - grid):>8.4f} {se:>7.4f} {sd:>8.4f} "
+                  f"{statistics.fmean(queries):>9.0f} {dt:>6.1f}")
 
     print()
     print("=" * 68)

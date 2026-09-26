@@ -17,28 +17,23 @@
     },
     {
       "eps": 0.001,
-      "k_max": 70,
+      "k_max": 74,
       "n_rounds": 4,
-      "queries": 75776,
-      "deepest_2q": 126604
+      "queries": 79872,
+      "deepest_2q": 133820
     },
     {
       "eps": 0.0001,
-      "k_max": 1168,
+      "k_max": 1213,
       "n_rounds": 5,
-      "queries": 1270784,
-      "deepest_2q": 2107396
+      "queries": 1320960,
+      "deepest_2q": 2188576
     }
   ],
-  "k_max_exponent": -1.2326914257242103,
-  "deepest_circuit_2q_measured": 2107396,
-  "tolerable_error_rate_measured": 4.7451926453310154e-07,
-  "crossover_error": 0.00155,
-  "crossover_eps": 7.218141678483631e-07,
-  "crossover_k_max": 513797.94316813216,
-  "crossover_deepest_2q": 926891813.4753104,
-  "tolerable_error_rate_crossover": 1.0788745627718687e-09,
-  "total_2q_gate_executions": 124476000000.0,
+  "k_max_exponent": -1.2409004047693062,
+  "deepest_circuit_2q_measured": 2188576,
+  "zero_fault_proxy_measured": 4.569181056540874e-07,
+  "q_operator_2q_executions_tightest_run": 2383011840,
   "profiles": [
     {
       "num_qubits": 3,
