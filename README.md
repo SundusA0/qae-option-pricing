@@ -16,7 +16,9 @@ considered. Extrapolating to the crossover with classical Monte Carlo puts the
 computation at **1.2 × 10¹¹ two-qubit gates**, requiring a two-qubit error rate
 below **8 × 10⁻¹²** — about 2.5 × 10⁸ times better than current superconducting
 hardware, and still three orders of magnitude beyond an early fault-tolerant
-logical qubit.
+logical qubit. And under depolarising noise at current error rates the optimal
+number of Grover iterations turns out to be **zero**, so on today's devices the
+speedup is not merely reduced — it is absent.
 
 The option priced here has a closed-form solution that a laptop evaluates exactly.
 
@@ -142,6 +144,71 @@ cost any serious quantum-finance proposal has to price in.
 
 ---
 
+## Noise does not erode the speedup — below a threshold it inverts it
+
+Amplitude estimation earns its advantage by applying the Grover operator `Q` many
+times: `k` iterations amplify the signal by roughly `(2k+1)`. Each application
+also executes ~1,800 two-qubit gates, and under depolarising noise every gate
+contracts the measured distribution toward maximally mixed. Amplification grows
+linearly in `k`; fidelity decays exponentially in `k`.
+
+### The signal collapse, measured
+
+`P(good state)` at `nq = 3`, 20,000 shots, depolarising noise at the stated
+two-qubit rate:
+
+| `k` | 2Q gates | noiseless | p=10⁻⁵ | p=10⁻⁴ | p=10⁻³ |
+|---|---|---|---|---|---|
+| 0 | 125 | 0.4677 | 0.4677 | 0.4683 | 0.4682 |
+| 1 | 647 | 0.6000 | 0.5995 | 0.5954 | 0.5560 |
+| 2 | 1,180 | 0.3358 | 0.3369 | 0.3547 | 0.4457 |
+| 3 | 1,717 | 0.7247 | 0.7219 | 0.6907 | 0.5493 |
+| 4 | 2,290 | 0.2188 | 0.2255 | 0.2749 | 0.4761 |
+
+Noiseless, the value oscillates as `sin²((2k+1)θ)` — that oscillation *is* the
+amplification. Under noise it flattens toward 0.5, which carries no information.
+
+### The decay follows `exp(−p · N₂Q)`
+
+Surviving contrast, `(measured − 0.5) / (noiseless − 0.5)`, against the
+prediction:
+
+| rate | `k` | 2Q gates | measured | predicted |
+|---|---|---|---|---|
+| 10⁻⁵ | 1 | 647 | 0.9979 | 0.9936 |
+| 10⁻⁵ | 3 | 1,717 | 0.9918 | 0.9830 |
+| 10⁻⁴ | 1 | 647 | 0.9336 | 0.9373 |
+| 10⁻⁴ | 3 | 1,717 | 0.8504 | 0.8422 |
+| 10⁻³ | 1 | 647 | 0.5011 | 0.5236 |
+| 10⁻³ | 2 | 1,180 | 0.3276 | 0.3073 |
+| 10⁻³ | 3 | 1,717 | 0.1706 | 0.1796 |
+
+Mean absolute deviation **0.0093** over nine points spanning contrast from 0.99
+to 0.17. The model holds, so it can be extrapolated to depths that cannot be
+simulated.
+
+### The threshold
+
+The useful gain from `k` iterations is `(2k+1) · exp(−p(A + kQ))`. Maximising
+gives `k* ≈ 1/(pQ)` and a ceiling near `0.74/(pQ)`. **A gain below 1 means
+amplification destroys more signal than it creates.** At `nq = 5`, where
+`A = 324` and `Q = 1,804` routed two-qubit gates:
+
+| 2Q error rate | optimal `k` | max gain | verdict |
+|---|---|---|---|
+| 2 × 10⁻³ (current superconducting) | **0** | 0.52 | amplification loses |
+| 1 × 10⁻⁴ (optimistic near-term) | 5 | 4.3 | 4× over sampling |
+| 1 × 10⁻⁶ | 554 | 408 | 408× over sampling |
+| 1 × 10⁻⁸ (early fault-tolerant logical) | 55,432 | 40,785 | 40,785× over sampling |
+
+On current hardware the optimal number of Grover iterations is **zero**.
+Amplitude estimation degenerates into ordinary Monte Carlo sampling, executed on
+a device many orders of magnitude slower than a CPU. The quadratic speedup is not
+merely reduced here — it is absent, and the machine is strictly worse than the
+laptop it is meant to beat.
+
+---
+
 ## Reproducing
 
 ```bash
@@ -152,6 +219,7 @@ python scripts/01_validate.py --quick   # ~20 s
 python scripts/01_validate.py           # ~6 min, 19 configs × 5 seeds
 python scripts/02_analyse.py            # scaling fits and crossover
 python scripts/03_resources.py          # transpiled gate counts
+python scripts/04_noise.py              # noise threshold, ~4 min
 ```
 
 `src/pricing.py` provides four independent routes to the same quantity —
@@ -180,8 +248,12 @@ works.
 - The crossover is extrapolated from a 7-point fit spanning 3,277 to 912,589
   queries. It is indicative, not definitive.
 - Oracle queries are counted, not physical gate time or shot overhead.
-- Noiseless simulation throughout. Gate errors would move the frontier the wrong
-  way; the conclusion is therefore optimistic.
+- The scaling and crossover analysis (sections 1-3) is noiseless. The noise study
+  is separate and does not feed back into the frontier fit.
+- Depolarising noise only, applied uniformly, with no measurement error,
+  crosstalk, leakage or idle decoherence. Real devices would be worse.
+- The noise measurement reaches k = 4 at 3 uncertainty qubits; larger k and wider
+  circuits are extrapolated through the validated fidelity model.
 - Iterative amplitude estimation only. Maximum-likelihood and canonical variants
   may sit differently on the frontier.
 - The scaling argument applies to any payoff encoded through a linearised
