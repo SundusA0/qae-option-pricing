@@ -50,17 +50,21 @@ RESULTS = Path(__file__).resolve().parents[1] / "results"
 
 def classical_baseline(spec: OptionSpec, target_se: float, seed: int = 0) -> dict:
     """
-    Smallest classical MC sample size reaching a given standard error.
+    Classical MC sample size required for a given standard error.
 
-    This is the number QAE has to beat. Quoting a quantum result without it
-    is the most common way these comparisons mislead.
+    The requirement is computed from a pilot variance estimate. The actual
+    simulation is capped at 20M samples, so for tight targets the returned
+    estimate and standard error come from fewer samples than required; both
+    counts are returned so the two are not confused.
     """
     pilot_n = 100_000
     _, se_pilot = expected_payoff_mc(spec, pilot_n, seed=seed)
     sigma = se_pilot * np.sqrt(pilot_n)
-    n_needed = int(np.ceil((sigma / target_se) ** 2))
-    est, se = expected_payoff_mc(spec, min(n_needed, 20_000_000), seed=seed)
-    return {"n_samples": n_needed, "estimate": est, "std_error": se}
+    required = int(np.ceil((sigma / target_se) ** 2))
+    simulated = min(required, 20_000_000)
+    est, se = expected_payoff_mc(spec, simulated, seed=seed)
+    return {"required_samples": required, "simulated_samples": simulated,
+            "estimate": est, "std_error": se}
 
 
 def main() -> None:
@@ -191,13 +195,20 @@ def main() -> None:
     print("=" * 68)
     print("CLASSICAL MONTE CARLO BASELINE")
     print("=" * 68)
-    print(f"  {'target SE':>10}  {'samples needed':>15}  {'estimate':>10}")
+    print("  'required' is the sample count for the target SE, from a pilot")
+    print("  variance estimate; 'simulated' is what was actually run (capped at")
+    print("  20M), and the estimate and SE columns come from that run.")
+    print()
+    print(f"  {'target SE':>10}  {'required':>13}  {'simulated':>11}  "
+          f"{'estimate':>10}  {'SE (sim.)':>10}")
     baselines = []
     for target in (1e-1, 1e-2, 1e-3):
         b = classical_baseline(spec, target)
         b["target_se"] = target
         baselines.append(b)
-        print(f"  {target:>10}  {b['n_samples']:>15,}  {b['estimate']:>10.5f}")
+        print(f"  {target:>10}  {b['required_samples']:>13,}  "
+              f"{b['simulated_samples']:>11,}  {b['estimate']:>10.5f}  "
+              f"{b['std_error']:>10.5f}")
 
     summary = {
         "black_scholes_price": bs,

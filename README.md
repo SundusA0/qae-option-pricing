@@ -73,32 +73,40 @@ Encoding error `|grid exact − analytic|`, before any estimation:
 The minimum along each row moves right as the window widens: the two parameters
 have to be chosen together. Widening the window at fixed qubit count spreads the
 same grid points over a larger interval; adding qubits inside a narrow window
-resolves a distribution that has already been clipped. At `n_std = 3` the error
-stays near 0.42 (5.7% of the payoff) across all qubit counts tested, because the
-call payoff grows linearly in the upper tail and truncated tail mass carries
-value.
+resolves a distribution that has already been clipped. At `n_std = 3`,
+increasing resolution ultimately exposes an error floor near 0.42 (5.7% of the
+payoff), because the call payoff grows linearly in the upper tail and truncated
+tail mass carries value.
 
-The 0.0257 at `n_std = 3, nq = 3` is cancellation between a coarse grid
-overshooting and a truncation deficit, not accuracy. Reading that row alone would
-suggest three qubits suffice.
+The anomalously small 0.0257 at `n_std = 3, nq = 3` is cancellation between a
+coarse grid overshooting and a truncation deficit, not accuracy. Reading that row
+alone would suggest three qubits suffice.
 
 ### Bias and spread respond oppositely to `c`
 
 Twenty seeds per configuration, so a systematic offset can be distinguished from
-sampling noise. At `ε = 10⁻³`, averaged over `nq ∈ {3, 4, 5}`:
+sampling noise. At `ε = 10⁻³`, signed bias (`mean − grid`) with the standard error
+of the mean, per qubit count:
 
-| `c` | bias | SE of mean estimate | spread (sd) |
-|---|---|---|---|
-| 0.25 | 0.961 | 0.004 | 0.018 |
-| 0.10 | 0.123 | 0.022 | 0.098 |
-| 0.05 | 0.045 | 0.032 | 0.142 |
+| `c` | `nq` | signed bias | SE of mean | spread (sd) |
+|---|---|---|---|---|
+| 0.25 | 3 | +0.925 | 0.004 | 0.019 |
+| 0.25 | 4 | +0.976 | 0.004 | 0.018 |
+| 0.25 | 5 | +0.982 | 0.004 | 0.019 |
+| 0.10 | 3 | +0.143 | 0.023 | 0.102 |
+| 0.10 | 4 | +0.114 | 0.022 | 0.099 |
+| 0.10 | 5 | +0.112 | 0.021 | 0.093 |
+| 0.05 | 3 | +0.061 | 0.029 | 0.129 |
+| 0.05 | 4 | +0.048 | 0.030 | 0.133 |
+| 0.05 | 5 | +0.026 | 0.037 | 0.164 |
 
-At `c = 0.25` and `c = 0.10` the bias exceeds the standard error of the mean
-many times over. At `c = 0.05` it does not: 0.045 against an SE of 0.032 is
-compatible with zero at this seed count.
-A power-law fit over the three values gives `c^1.92`, consistent with the
+Every bias is positive: the linearisation overestimates the payoff. At `c = 0.25`
+and `c = 0.10` it exceeds its standard error many times over at every `nq`. At
+`c = 0.05` it does not — each of the three is within about two standard errors of
+zero, so at this seed count the bias there is not resolved. A power-law fit over
+the `nq`-averaged values (0.961, 0.123, 0.045) gives `c^1.92`, consistent with the
 quadratic bias expected from a second-order linearisation error; the fit is
-anchored by the two well-determined points.
+anchored by the two well-determined levels.
 
 The spread increases as `c` decreases, as expected when the amplitude signal is
 proportional to `c`. It does not follow a clean `1/c` law over these three points
