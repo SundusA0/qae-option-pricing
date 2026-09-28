@@ -5,6 +5,11 @@ import numpy as np
 from scipy.stats import norm
 
 
+# Shots per IQAE round. This is Qiskit's StatevectorSampler default; it is set
+# explicitly because it is a central experimental parameter.
+SHOTS = 1024
+
+
 @dataclass(frozen=True)
 class OptionSpec:
     """A European call: spot, strike, volatility, risk-free rate, maturity (years)."""
@@ -112,7 +117,8 @@ def expected_payoff_qae(
     iae = IterativeAmplitudeEstimation(
         epsilon_target=epsilon_target,
         alpha=alpha,
-        sampler=StatevectorSampler(seed=np.random.default_rng(seed)),
+        sampler=StatevectorSampler(default_shots=SHOTS,
+                                   seed=np.random.default_rng(seed)),
     )
     result = iae.estimate(problem)
     lo, hi = app.interpret_confidence_interval(result) if hasattr(

@@ -45,6 +45,8 @@
     }
   ],
   "conditional_exponent": -0.6543852680645352,
+  "conditional_exponent_fixed_nq": -0.6587429905530352,
+  "conditional_fixed_nq": 4,
   "end_to_end_frontier": [
     {
       "queries": 3276.8,

@@ -5,16 +5,18 @@
 Quantum amplitude estimation (QAE) is a standard proposal for accelerating
 derivative pricing, on the strength of a quadratic speedup over classical Monte
 Carlo. This repository reproduces its known behaviour on a vanilla European call,
-measures the main error sources, and follows the consequences through to circuits
-and devices.
+measures the main error sources, and follows the consequences through to compiled
+circuits and hardware-oriented resource and noise proxies.
 
 ![Oracle queries against RMSE](results/reference/frontier.png)
 
 *Oracle queries against RMSE for one option. The conditional frontier (RMSE
-against the encoded grid) keeps falling with more queries; the end-to-end
-frontier (RMSE against the analytic payoff) reaches a floor near 0.15 set by
-encoding error. The most expensive run in the sweep sits on the first curve and
-above the second. Classical Monte Carlo on the same encoded grid needs 8–60×
+against the encoded grid) keeps falling with more queries. The end-to-end
+frontier (RMSE against the analytic payoff) stops improving within the tested
+sweep: the most expensive run sits on the first curve and above the second,
+because it was run at 4 uncertainty qubits, whose grid is already 0.132 from the
+true value. The sweep does not establish where the end-to-end frontier would
+eventually floor. Classical Monte Carlo on the same encoded grid needs 8–60×
 fewer samples across the tested range.*
 
 ## What this is
@@ -39,7 +41,8 @@ starting point, not a contribution.
 This repository adds the experimental workflow: the parameter sweeps, separation
 of encoding error from estimation error with bias distinguished from variance
 across up to twenty seeds, instrumentation of the IQAE schedule, transpiled resource
-counts, a noise measurement, and the end-to-end frontier reported below.
+counts, a depolarising-noise simulation, and the end-to-end frontier reported
+below.
 
 The goal is to measure these error sources together in one implementation and
 identify which constraint dominates in practice. The European call has a
@@ -93,13 +96,16 @@ The anomalously small 0.0257 at `n_std = 3, nq = 3` is cancellation between a
 coarse grid overshooting and a truncation deficit, not accuracy. Reading that row
 alone would suggest three qubits suffice.
 
-### Bias and spread respond oppositely to `c`
+### Systematic offset and spread respond oppositely to `c`
 
 Twenty seeds per configuration, so a systematic offset can be distinguished from
-sampling noise. At `ε = 10⁻³`, signed bias (`mean − grid`) with the standard error
-of the mean, per qubit count:
+sampling noise. At `ε = 10⁻³`, signed offset (`mean − grid`) with the standard
+error of the mean, per qubit count. This is the offset of the whole IQAE
+estimator relative to the grid expectation: it is consistent with the expected
+payoff-linearisation bias, and may also contain finite-sampling estimator bias,
+which this experiment does not separate.
 
-| `c` | `nq` | signed bias | SE of mean | spread (sd) |
+| `c` | `nq` | signed offset | SE of mean | spread (sd) |
 |---|---|---|---|---|
 | 0.25 | 3 | +0.925 | 0.004 | 0.019 |
 | 0.25 | 4 | +0.976 | 0.004 | 0.018 |
@@ -112,7 +118,7 @@ of the mean, per qubit count:
 | 0.05 | 5 | +0.026 | 0.037 | 0.164 |
 
 All observed mean offsets are positive. At `c = 0.25` and `c = 0.10` the positive
-bias is clearly resolved, exceeding its standard error many times over at every
+offset is clearly resolved, exceeding its standard error many times over at every
 `nq`. At `c = 0.05` its magnitude and sign are not resolved at the present seed
 count — each of the three is within about two standard errors of zero. A power-law fit over
 the `nq`-averaged values (0.961, 0.123, 0.045) gives `c^1.92`, consistent with the
@@ -140,9 +146,11 @@ classical Monte Carlo and `O(M^−1)` for ideal QAE.
 
 ### RMSE relative to the encoded grid
 
-This holds the encoding fixed and isolates the amplitude-estimation contribution.
-Estimated RMSE is `√(bias² + sd²)`, the usual bias–variance decomposition of a
-single run's root-mean-square error.
+Each run is scored against its own grid's exact expectation, which removes
+encoding error from the metric. The frontier below still hops between qubit
+counts, so the encoding is not held fixed along it; the fixed-`nq` fit after the
+table addresses that. Estimated RMSE is `√(bias² + sd²)`, the usual
+bias–variance decomposition of a single run's root-mean-square error.
 
 | oracle queries | RMSE | configuration |
 |---|---|---|
@@ -153,12 +161,17 @@ single run's root-mean-square error.
 | 70,605 | 0.1416 | nq=4, c=0.05, ε=10⁻³ |
 | 966,451 | 0.0437 | nq=4, c=0.05, ε=10⁻⁴ |
 
-Empirical exponent **−1.53** over six frontier points, against the −1.5 the
-trade-off predicts. The last point is the least replicated (five seeds) and the
-most influential: without it the fit gives −1.26. The agreement at −1.53 is
-closer than a six-point fit on one option can justify, and should be read as
-qualitatively consistent rather than as a measurement of the asymptotic
-exponent.
+Empirical fit `RMSE ~ N^−0.65` over the six mixed-`nq` frontier points (stored
+as `conditional_exponent` in `frontiers.json`), equivalently a query-complexity
+exponent of −1.53. The cleaner comparison holds the encoding fixed: at `nq = 4`
+alone, the only qubit count carrying the ε = 10⁻⁴ probe, the five-point frontier
+gives `RMSE ~ N^−0.66`, equivalently **−1.52**, against the −1.5 the trade-off
+predicts. The mixed-`nq` frontier is a best-achieved envelope; the fixed-`nq`
+fit is the basis for the scaling comparison. The last point is the least
+replicated (five seeds) and the most influential: without it the mixed fit gives
+−1.26. Agreement this close is more than a five-point fit on one option can
+justify, and should be read as qualitatively consistent rather than as a
+measurement of the asymptotic exponent.
 
 ### RMSE relative to the analytic payoff (Black–Scholes reference)
 
@@ -179,10 +192,13 @@ analytic payoff, because that grid — 4 uncertainty qubits at `n_std = 5` — s
 0.1317 from the true value. A configuration using sixteen times fewer queries has
 lower end-to-end error.
 
-At this point encoding error rather than amplitude-estimation error becomes the
-dominant limitation, and reducing it requires more qubits or a wider window rather
-than more queries. No exponent is quoted for this frontier: it has four points
-and reaches a floor.
+For that run, encoding error at `nq = 4` is the dominant limitation, and reducing
+it requires more qubits or a wider window rather than more queries. The best
+end-to-end point, at `nq = 5`, has encoding error 0.004; its 0.149 is
+linearisation offset and spread at `c = 0.10, ε = 10⁻³`, not an encoding floor.
+The sweep does not include ε = 10⁻⁴ at `nq = 5`, so where the end-to-end
+frontier would eventually floor is not established. No exponent is quoted for
+it: four points, and the sweep stops before the question is answered.
 
 ### Query-scaling comparison against classical Monte Carlo
 
@@ -202,14 +218,16 @@ would score the two methods on different quantities.
 
 Amplitude estimation needs more oracle queries than Monte Carlo needs samples at
 every budget reachable in simulation, by a factor of roughly 8 to 60 across the
-tested range. An oracle query is a 7–11-qubit circuit with 500–1,800 routed
-two-qubit gates in this sweep; a Monte Carlo sample is one exponential and one
-`max()`.
+tested range. This is a sample/query-complexity comparison, not a wall-clock
+benchmark: one application of the Grover operator `Q` costs 500–1,800 routed
+two-qubit gates in this sweep, an IQAE circuit contains `A` followed by `Q^k`,
+and matched-grid classical sampling draws from a precomputed discrete
+distribution.
 
-No end-to-end crossover is estimated from this sweep. The end-to-end frontier
-reaches an approximation-error floor set by the encoded distribution before query
-scaling could dominate, so extrapolating a crossing point from these data would
-not be meaningful.
+No end-to-end crossover is estimated from this sweep. It does not extend to
+tight ε at qubit counts where encoding error is small, so the end-to-end
+frontier's eventual floor is not measured and extrapolating a crossing point
+would not be meaningful.
 
 ---
 
@@ -344,8 +362,9 @@ Black–Scholes closed form, exact expectation on the discretised grid, classica
 Monte Carlo, and amplitude estimation. Discrepancies can then be attributed to a
 specific source.
 
-**Seeding.** `StatevectorSampler` is seeded with a `numpy.random.Generator`, not
-an integer. With an integer seed the sampler restarts its random stream on every
+**Shots and seeding.** Every IQAE round uses 1,024 shots, set explicitly as
+`SHOTS` in `src/pricing.py` (it is also Qiskit's default). `StatevectorSampler`
+is seeded with a `numpy.random.Generator`, not an integer. With an integer seed the sampler restarts its random stream on every
 `run()` call, so IQAE's successive rounds reuse the same draws and the within-run
 statistics are not what they appear to be. All QAE results here were produced
 with `Generator` seeding.
@@ -373,6 +392,9 @@ successfully"; `SamplerV2` fails the same way.
 
 - One option (S₀=100, K=105, σ=0.20, r=0.03, T=1) at up to 5 uncertainty qubits.
   Nothing here establishes behaviour across moneyness, volatility or maturity.
+- The ε = 10⁻⁴ probe was run at `nq = 4` only. The end-to-end frontier's
+  behaviour at tight precision and small encoding error is not measured, so no
+  end-to-end floor is established.
 - Twenty seeds per configuration is enough to resolve the bias at `c ≥ 0.10` but
   not at `c = 0.05`; the `ε = 10⁻⁴` probe uses five. Fitted exponents are
   small-sample observations without confidence intervals, not characterised

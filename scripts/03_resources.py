@@ -37,7 +37,7 @@ from qiskit.transpiler import CouplingMap
 
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from src.pricing import OptionSpec
+from src.pricing import OptionSpec, SHOTS
 
 warnings.filterwarnings("ignore")
 
@@ -99,7 +99,8 @@ def measure_schedule(nq: int, c: float = 0.05,
     for eps in eps_levels:
         iae = IterativeAmplitudeEstimation(
             epsilon_target=eps, alpha=0.05,
-            sampler=StatevectorSampler(seed=np.random.default_rng(42)))
+            sampler=StatevectorSampler(default_shots=SHOTS,
+                                       seed=np.random.default_rng(42)))
         res = iae.estimate(prob)
         out.append({"eps": eps, "k_max": int(max(res.powers)),
                     "n_rounds": len(res.powers),

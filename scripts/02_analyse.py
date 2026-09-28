@@ -257,6 +257,28 @@ def main() -> None:
         e_wo, _ = powerlaw([f[0] for f in cond[:-1]], [f[1] for f in cond[:-1]])
         print(f"   without the last point:  error ~ N^{e_wo:.2f}   i.e.   N ~ error^{1 / e_wo:.2f}")
         print("   The endpoint moves the exponent noticeably; treat the fit as indicative.")
+
+    # the mixed frontier hops between qubit counts, so the encoding is not
+    # actually held fixed along it. Repeat at the one nq that carries the
+    # eps=1e-4 probe, so the scaling argument is made on a single encoding.
+    fixed_nq = max((r["num_qubits"] for r in rows if r["epsilon_target"] < 1e-3),
+                   default=None)
+    fixed_exp = None
+    if fixed_nq is not None:
+        pts = sorted((r["queries"], float(np.hypot(r["bias"], r["sd"])), r)
+                     for r in rows if r["num_qubits"] == fixed_nq)
+        fixed = []; best = float("inf")
+        for q, err, r in pts:
+            if err < best:
+                fixed.append((q, err, r)); best = err
+        if len(fixed) >= 3:
+            fixed_exp, _ = powerlaw([f[0] for f in fixed], [f[1] for f in fixed])
+            print()
+            print(f"   Same fit at fixed nq={fixed_nq} only ({len(fixed)} frontier points),")
+            print(f"   so the encoding does not change along the curve:")
+            print(f"   error ~ N^{fixed_exp:.3f}   i.e.   N ~ error^{1 / fixed_exp:.2f}")
+            print("   This is the cleaner basis for comparison with the O(M^-2/3) rate;")
+            print("   the mixed-nq frontier above is a best-achieved envelope.")
     print()
     print("   Reference points: ideal amplitude estimation N ~ error^-1.0;")
     print("   classical Monte Carlo N ~ error^-2.0.")
@@ -304,9 +326,10 @@ def main() -> None:
     print(f"   end-to-end frontier: a configuration using {ratio:.0f}x fewer queries has")
     print("   lower end-to-end error.")
     print()
-    print("   At this point encoding error rather than amplitude-estimation error")
-    print("   becomes the dominant limitation. Reducing it requires more qubits or")
-    print("   a wider window rather than additional queries.")
+    print(f"   For that run, encoding error at nq={deepest['num_qubits']} is the")
+    print("   dominant limitation. The sweep does not include eps=1e-4 at a qubit")
+    print("   count where encoding error is small, so where the end-to-end frontier")
+    print("   would eventually floor is not established here.")
 
     print()
     print("=" * 70)
@@ -335,10 +358,10 @@ def main() -> None:
     print(f"   needs samples at every budget reachable in simulation, by a factor")
     print(f"   of roughly {lo:.0f}x to {hi:.0f}x across the tested range.")
     print()
-    print("   No end-to-end crossover is estimated from this sweep. The end-to-end")
-    print("   frontier reaches an approximation-error floor set by the encoded")
-    print("   distribution before query scaling could dominate, so extrapolating a")
-    print("   crossing point from these data would not be meaningful.")
+    print("   No end-to-end crossover is estimated from this sweep. It does not")
+    print("   extend to tight epsilon at qubit counts where encoding error is")
+    print("   small, so the end-to-end frontier's eventual floor is not measured")
+    print("   and extrapolating a crossing point would not be meaningful.")
 
     (RESULTS / "frontiers.json").write_text(json.dumps({
         "analytic": analytic,
@@ -348,6 +371,8 @@ def main() -> None:
                                   "epsilon_target": r["epsilon_target"]}
                                  for q, e, r in cond],
         "conditional_exponent": err_exp,
+        "conditional_exponent_fixed_nq": fixed_exp,
+        "conditional_fixed_nq": fixed_nq,
         "end_to_end_frontier": [{"queries": q, "error": e,
                                  "num_qubits": r["num_qubits"],
                                  "rescaling_factor": r["rescaling_factor"],
