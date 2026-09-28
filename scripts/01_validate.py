@@ -1,8 +1,9 @@
 """
 Validate the QAE option pricer and decompose its error budget.
 
-Three contributions are measured between the analytic expected payoff and what
-QAE returns:
+Three contributions lie between the analytic expected payoff and what QAE
+returns. The first is measured on its own; the second and third are measured
+together as the estimator's offset and spread relative to the grid expectation:
 
   1. Encoding      - truncation to a window, renormalisation, and discretisation
                      onto 2**nq grid points, taken together as the gap between

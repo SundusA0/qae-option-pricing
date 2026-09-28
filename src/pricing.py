@@ -90,9 +90,10 @@ def expected_payoff_qae(
     Estimate the expected payoff with Iterative Amplitude Estimation.
 
     rescaling_factor (c) controls the small-angle linearisation of the payoff.
-    Large c keeps the circuit cheap but leaves a systematic bias that no amount
-    of sampling removes; small c lowers that bias but shrinks the signal, so a
-    tighter epsilon_target is needed to resolve it. That trade-off is the point.
+    Larger c strengthens the encoded amplitude signal but increases the
+    payoff-linearisation error; smaller c reduces that approximation error but
+    makes a given payoff accuracy require finer amplitude estimation. That
+    trade-off is the point.
     """
     from qiskit_algorithms import IterativeAmplitudeEstimation
     from qiskit.primitives import StatevectorSampler

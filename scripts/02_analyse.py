@@ -169,7 +169,7 @@ def main() -> None:
     tight = min(usable) if usable else min(eps_levels)
 
     print("=" * 70)
-    print("1. BIAS vs RESCALING FACTOR")
+    print("1. SYSTEMATIC OFFSET vs RESCALING FACTOR")
     print("=" * 70)
     print(f"   Measured at eps={tight:g}, the tightest level covering "
           f"{coverage[tight]} rescaling factors.")
@@ -187,8 +187,9 @@ def main() -> None:
     if len(cs) >= 2:
         bias_exp, bias_a = powerlaw(cs, bs)
         print(f"\n   fit: bias ~ c^{bias_exp:.2f}")
-        print("   Consistent with c^2, as expected for a second-order linearisation")
-        print("   error. This term does not decrease with additional sampling.")
+        print("   The c-dependence is consistent with the expected quadratic payoff-")
+        print("   linearisation error. This experiment does not separately identify")
+        print("   finite-sampling estimator bias, which the offset may also contain.")
 
     print()
     print("=" * 70)
@@ -244,8 +245,9 @@ def main() -> None:
     print("3a. CONDITIONAL FRONTIER  (RMSE relative to the encoded grid)")
     print("=" * 70)
     print("   Estimated RMSE = sqrt(bias^2 + sd^2) against the exact expectation")
-    print("   ON the truncated, discretised distribution. This isolates what")
-    print("   amplitude estimation does, holding the encoding fixed.")
+    print("   ON the truncated, discretised distribution. This removes each grid's")
+    print("   encoding error from the metric. The mixed frontier below can still")
+    print("   change nq between points; a fixed-nq fit is reported separately.")
     print()
     cond = build_frontier(lambda r: float(np.hypot(r["bias"], r["sd"])))
     err_exp = show(cond, "conditional")
