@@ -129,27 +129,23 @@
   "amplification": [
     {
       "rate": 0.002,
-      "label": "current superconducting",
       "optimal_k": 0,
-      "max_gain": 0.5230909131025008
+      "heuristic_score": 0.5230909131025008
     },
     {
       "rate": 0.0001,
-      "label": "optimistic near-term",
       "optimal_k": 5,
-      "max_gain": 4.321036365034711
+      "heuristic_score": 4.321036365034711
     },
     {
       "rate": 1e-06,
-      "label": "aggressive",
       "optimal_k": 554,
-      "max_gain": 408.08438840805866
+      "heuristic_score": 408.08438840805866
     },
     {
       "rate": 1e-08,
-      "label": "early fault-tolerant logical",
       "optimal_k": 55432,
-      "max_gain": 40785.09617735969
+      "heuristic_score": 40785.09617735969
     }
   ]
 }

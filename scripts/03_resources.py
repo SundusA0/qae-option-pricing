@@ -11,9 +11,10 @@ Two distinct costs follow, and conflating them is a common error:
   Q-operator 2Q executions - two-qubit gates contributed by Q across all
                              oracle calls. This is a workload proxy, not the
                              complete gate count and not a fidelity
-                             requirement: the shots are independent, so a
-                             corrupted shot adds noise to the estimate rather
-                             than invalidating the experiment.
+                             requirement: noise accumulates within each circuit
+                             execution, and across independent shots it acts on
+                             the estimator (bias and variance) rather than
+                             imposing a zero-fault condition on the aggregate.
 
   Deepest single circuit - A followed by Q^k at the largest k the IQAE schedule
                            reaches. Noise accumulates within a single circuit
@@ -203,8 +204,9 @@ def main() -> None:
     print(f"   calls in the tightest run: approximately {total_gates:.2e}. This")
     print("   excludes state-preparation executions and single-qubit gates. It is")
     print("   a throughput and wall-clock cost, not a fidelity requirement.")
-    print("   The shots are independent; a corrupted shot adds variance to the")
-    print("   estimate rather than invalidating the run.")
+    print("   Noise accumulates within each circuit execution; across independent")
+    print("   shots it acts on the estimator, as bias and variance, rather than")
+    print("   imposing a zero-fault requirement on the aggregate workload.")
     print()
     print(f"   {'2Q error rate':>14} {'vs zero-fault proxy':>22}")
     for pdev in (2e-3, 1e-3, 1e-4, 1e-6):

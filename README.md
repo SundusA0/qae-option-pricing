@@ -1,5 +1,7 @@
 # Quantum amplitude estimation for European option pricing: a reproduction and error budget
 
+[![tests](https://github.com/SundusA0/qae-option-pricing/actions/workflows/tests.yml/badge.svg)](https://github.com/SundusA0/qae-option-pricing/actions/workflows/tests.yml)
+
 Quantum amplitude estimation (QAE) is a standard proposal for accelerating
 derivative pricing, on the strength of a quadratic speedup over classical Monte
 Carlo. This repository reproduces its known behaviour on a vanilla European call,
@@ -252,11 +254,13 @@ accounted for.
 Q-operator two-qubit gate executions across all oracle calls reach approximately
 2.4 × 10⁹ in the tightest run, excluding state-preparation executions and
 single-qubit gates. That figure sets throughput and wall-clock time. It does not
-set a fidelity requirement, because the shots are independent: a corrupted shot
-adds variance to the estimate rather than invalidating the run. The per-gate error
-rate is constrained instead by the deepest single circuit, `A` followed by `Q^k`
-at the largest `k` the schedule reaches, since noise accumulates within a single
-circuit execution.
+set a fidelity requirement. Noise accumulates within each circuit execution;
+across independent shots it acts on the estimator — as bias as well as variance,
+since the noise study below shows depolarising noise pulling the measured
+probability toward 0.5 — rather than imposing a zero-fault condition on the
+aggregate workload. The per-gate error rate is constrained instead by the
+deepest single circuit, `A` followed by `Q^k` at the largest `k` the schedule
+reaches.
 
 Under an independent-error model, `p · G₂Q ≪ 1` is a deliberately conservative
 zero-two-qubit-fault proxy. It is not a fault-tolerance threshold or a prediction
