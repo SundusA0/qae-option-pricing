@@ -89,6 +89,57 @@ def powerlaw(x, y) -> tuple[float, float]:
     return float(b), float(np.exp(loga))
 
 
+
+def plot_frontiers(cond, e2e, comparison, deepest, deepest_e2e, out_path: Path) -> bool:
+    """
+    One log-log figure: oracle queries against RMSE, with the conditional and
+    end-to-end frontiers, the matched classical Monte Carlo line, and the most
+    expensive run shown at both its conditional and end-to-end error.
+    """
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+    except ImportError:
+        print("   (matplotlib not installed; skipping figure. pip install matplotlib)")
+        return False
+
+    fig, ax = plt.subplots(figsize=(7.2, 4.6), dpi=150)
+
+    cq, ce = [f[0] for f in cond], [f[1] for f in cond]
+    eq, ee = [f[0] for f in e2e], [f[1] for f in e2e]
+    mq, me = [c["mc_samples"] for c in comparison], [c["error"] for c in comparison]
+
+    ax.plot(mq, me, ls="--", color="0.45", lw=1.4, marker="s", ms=4,
+            label="classical Monte Carlo, matched grid (samples)")
+    ax.plot(cq, ce, color="#1f77b4", lw=1.8, marker="o", ms=5,
+            label="QAE, RMSE vs encoded grid (conditional)")
+    ax.plot(eq, ee, color="#d95f02", lw=1.8, marker="D", ms=5,
+            label="QAE, RMSE vs analytic payoff (end-to-end)")
+
+    # the most expensive run: on the conditional frontier, off the end-to-end one
+    dq = deepest["queries"]
+    dc = float(np.hypot(deepest["bias"], deepest["sd"]))
+    ax.plot([dq, dq], [dc, deepest_e2e], ls=":", color="#d95f02", lw=1.2)
+    ax.plot([dq], [deepest_e2e], marker="D", ms=7, mfc="white", mec="#d95f02",
+            mew=1.6, ls="none")
+    ax.annotate(f"same run vs analytic\nRMSE {deepest_e2e:.3f}",
+                xy=(dq, deepest_e2e), xytext=(-12, 22), textcoords="offset points",
+                ha="right", va="bottom", fontsize=8, color="#d95f02",
+                arrowprops=dict(arrowstyle="-", color="#d95f02", lw=0.8))
+
+    ax.set_xscale("log"); ax.set_yscale("log")
+    ax.set_xlabel("oracle queries (QAE)  /  samples (Monte Carlo)")
+    ax.set_ylabel("RMSE of expected payoff")
+    ax.grid(True, which="major", ls=":", lw=0.6, alpha=0.6)
+    ax.legend(fontsize=8, loc="lower left", frameon=False)
+    ax.set_title("Oracle-query cost against RMSE: conditional and end-to-end frontiers",
+                 fontsize=9.5, loc="left")
+    fig.tight_layout()
+    fig.savefig(out_path)
+    plt.close(fig)
+    return True
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--csv", default=None,
@@ -297,6 +348,8 @@ def main() -> None:
         "classical_comparison": comparison,
     }, indent=2))
     print(f"\n   Wrote frontiers.json to results/")
+    if plot_frontiers(cond, e2e, comparison, deepest, deepest_e2e, RESULTS / "frontier.png"):
+        print("   Wrote frontier.png to results/")
 
 
 if __name__ == "__main__":
