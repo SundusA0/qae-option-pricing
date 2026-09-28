@@ -8,6 +8,35 @@ Carlo. This repository reproduces its known behaviour on a vanilla European call
 measures the main error sources, and follows the consequences through to compiled
 circuits and hardware-oriented resource and noise proxies.
 
+## Summary
+
+**Question.** Does the quadratic query advantage of amplitude estimation survive
+payoff encoding, finite sampling, circuit compilation and noise on a vanilla
+European call?
+
+**Result.** Not in the regime reachable in simulation. Across the tested budgets,
+QAE needs 8–60× more oracle queries than classical Monte Carlo needs samples on
+the same encoded grid. One application of the Grover operator compiles to
+515–1,804 routed two-qubit gates on a heavy-hex-like topology, and the deepest
+circuit at ε = 10⁻⁴ is an estimated 2.2 × 10⁶ two-qubit gates. Under depolarising
+noise at a two-qubit error rate of 2 × 10⁻³, the useful-amplification heuristic
+selects `k = 0`: no coherent amplification helps. At fixed encoding the RMSE falls
+as `N^−0.66` (seed-bootstrap 95% interval [−0.76, −0.59]), consistent with the
+`M^−2/3` rate of the lowest-depth payoff encoding rather than the ideal `N^−1`.
+
+**Why.** The practical comparison is set by the payoff-linearisation trade-off,
+the encoding error of the truncated and discretised distribution, and coherent
+depth, not by the estimator's asymptotic query complexity. The end-to-end error
+floor is not reached within this sweep.
+
+**What is here.** Iterative amplitude estimation on a Qiskit Finance European
+call; sweeps over qubit count, rescaling factor and target precision at 20 seeds
+per configuration; an error budget separating encoding, linearisation and
+sampling error; a classical Monte Carlo comparison on the same encoded grid;
+transpiled resource counts and the IQAE depth schedule; a depolarising-noise
+simulation; a seed bootstrap over the frontier fits; tests and CI. This is a
+reproduction and benchmarking study, not a new algorithm.
+
 ![Oracle queries against RMSE](results/reference/frontier.png)
 
 *Oracle queries against RMSE for one option. The conditional frontier (RMSE
