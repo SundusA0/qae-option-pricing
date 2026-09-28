@@ -73,7 +73,7 @@ starting point, not a contribution.
 
 This repository adds the experimental workflow: the parameter sweeps, separation
 of encoding error from estimation error with bias distinguished from variance
-across up to twenty seeds, instrumentation of the IQAE schedule, transpiled resource
+across twenty seeds per configuration, instrumentation of the IQAE schedule, transpiled resource
 counts, a depolarising-noise simulation, and the end-to-end frontier reported
 below.
 
@@ -353,7 +353,8 @@ algorithm at `nq = 5` (`A` = 324, `Q` = 1,804 routed two-qubit gates):
 | 10⁻³ | 4 | 74 | 133,820 | 79,872 |
 | 10⁻⁴ | 5 | 1,213 | 2,188,576 | 1,320,960 |
 
-with `k_max ~ ε^−1.24` over this range. The deepest-circuit column is estimated
+A descriptive three-point fit gives `k_max ~ ε^−1.24` over this range; it is
+not an asymptotic rate. The deepest-circuit column is estimated
 as `A + k_max·Q` from independently transpiled blocks; the composed circuit is
 not transpiled whole, so compiler optimisation across block boundaries is not
 accounted for.
@@ -414,7 +415,9 @@ to an average gate infidelity of `3p/4`; it is not a calibrated backend metric.
 As a small-angle heuristic for useful amplification, consider
 `(2k+1) · exp(−p(A + kQ))`: amplification times surviving fidelity. This is an
 engineering proxy rather than a derived expression for the information gain of
-noisy amplitude estimation. Maximising it gives `k* ≈ 1/(pQ)`:
+noisy amplitude estimation. Maximising it gives `k* ≈ 1/(pQ)`. The table uses the
+`nq = 5` counts from the resource section (`A` = 324, `Q` = 1,804 routed
+two-qubit gates), not the `nq = 3` circuits simulated above:
 
 | 2Q depolarising parameter `p` | optimal `k` | `H(k*)` |
 |---|---|---|
