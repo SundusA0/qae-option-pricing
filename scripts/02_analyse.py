@@ -117,6 +117,14 @@ def plot_frontiers(cond, e2e, comparison, deepest, deepest_e2e, out_path: Path) 
     ax.plot(eq, ee, color="#d95f02", lw=1.8, marker="D", ms=5,
             label="QAE, RMSE vs analytic payoff (end-to-end)")
 
+    # label end-to-end frontier points by qubit count: adjacent points with
+    # nearly equal query cost can differ by an order of magnitude in error
+    # because their encoded grids differ, and that is the point of the frontier
+    for i, (q, err, r) in enumerate(e2e):
+        dy = 5 if i % 2 == 0 else -11
+        ax.annotate(f"nq={r['num_qubits']}", xy=(q, err), xytext=(6, dy),
+                    textcoords="offset points", fontsize=7.5, color="#d95f02")
+
     # the most expensive run: on the conditional frontier, off the end-to-end one
     dq = deepest["queries"]
     dc = float(np.hypot(deepest["bias"], deepest["sd"]))
