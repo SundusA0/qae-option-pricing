@@ -260,9 +260,10 @@ def main() -> None:
         print(f"   without the last point:  error ~ N^{e_wo:.2f}   i.e.   N ~ error^{1 / e_wo:.2f}")
         print("   The endpoint moves the exponent noticeably; treat the fit as indicative.")
 
-    # the mixed frontier hops between qubit counts, so the encoding is not
-    # actually held fixed along it. Repeat at the one nq that carries the
-    # eps=1e-4 probe, so the scaling argument is made on a single encoding.
+    # the mixed frontier hops between qubit counts, so the distribution grid is
+    # not held fixed along it (c still varies, as the trade-off requires). Repeat
+    # at the one nq that carries the eps=1e-4 probe, so the scaling argument is
+    # made on a single grid.
     fixed_nq = max((r["num_qubits"] for r in rows if r["epsilon_target"] < 1e-3),
                    default=None)
     fixed_exp = None
@@ -277,7 +278,7 @@ def main() -> None:
             fixed_exp, _ = powerlaw([f[0] for f in fixed], [f[1] for f in fixed])
             print()
             print(f"   Same fit at fixed nq={fixed_nq} only ({len(fixed)} frontier points),")
-            print(f"   so the encoding does not change along the curve:")
+            print(f"   so the distribution grid does not change along the curve:")
             print(f"   error ~ N^{fixed_exp:.3f}   i.e.   N ~ error^{1 / fixed_exp:.2f}")
             print("   This is the cleaner basis for comparison with the O(M^-2/3) rate;")
             print("   the mixed-nq frontier above is a best-achieved envelope.")

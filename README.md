@@ -20,7 +20,7 @@ the same encoded grid. One application of the Grover operator compiles to
 515–1,804 routed two-qubit gates on a heavy-hex-like topology, and the deepest
 circuit at ε = 10⁻⁴ is an estimated 2.2 × 10⁶ two-qubit gates. Under depolarising
 noise at a two-qubit error rate of 2 × 10⁻³, the useful-amplification heuristic
-selects `k = 0`: no coherent amplification helps. At fixed encoding the RMSE falls
+selects `k = 0`: no coherent amplification helps. At a fixed grid (`nq = 4`) the RMSE falls
 as `N^−0.66` (seed-bootstrap 95% interval [−0.76, −0.59]), consistent with the
 `M^−2/3` rate of the lowest-depth payoff encoding rather than the ideal `N^−1`.
 
@@ -177,9 +177,12 @@ classical Monte Carlo and `O(M^−1)` for ideal QAE.
 
 Each run is scored against its own grid's exact expectation, which removes
 encoding error from the metric. The frontier below still hops between qubit
-counts, so the encoding is not held fixed along it; the fixed-`nq` fit after the
-table addresses that. Estimated RMSE is `√(bias² + sd²)`, the usual
-bias–variance decomposition of a single run's root-mean-square error.
+counts, so the distribution grid is not held fixed along it; the fixed-`nq` fit
+after the table addresses that. Estimated RMSE is `√(bias² + sd²)`, the usual
+bias–variance decomposition of a single run's root-mean-square error. `sd` uses
+the n − 1 denominator, so this estimates the population RMSE; the in-sample
+`√(mean((x̂ᵢ − x)²))` equals `√(bias² + sd²·(n−1)/n)` and is lower by up to about
+10% at five seeds.
 
 | oracle queries | RMSE | configuration |
 |---|---|---|
@@ -192,8 +195,9 @@ bias–variance decomposition of a single run's root-mean-square error.
 
 Empirical fit `RMSE ~ N^−0.65` over the six mixed-`nq` frontier points (stored
 as `conditional_exponent` in `frontiers.json`), equivalently a query-complexity
-exponent of −1.53. The cleaner comparison holds the encoding fixed: at `nq = 4`
-alone, the only qubit count carrying the ε = 10⁻⁴ probe, the five-point frontier
+exponent of −1.53. The cleaner comparison holds the distribution grid fixed (the
+payoff rescaling `c` still varies, as the trade-off requires): at `nq = 4` alone,
+the only qubit count carrying the ε = 10⁻⁴ probe, the five-point frontier
 gives `RMSE ~ N^−0.66`, equivalently **−1.52**, against the −1.5 the trade-off
 predicts. The mixed-`nq` frontier is a best-achieved envelope; the fixed-`nq`
 fit is the basis for the scaling comparison. The last point is the least
@@ -366,6 +370,10 @@ surviving contrast is approximated by `exp(−p(A + kQ))`.
 Noiseless, the value oscillates as `sin²((2k+1)θ)`. Under noise it moves toward
 0.5, the maximally mixed value. Surviving contrast follows `exp(−p · N₂Q)` with
 mean absolute deviation 0.0133 over twelve points spanning contrast 0.99 to 0.086.
+The simulator also applies depolarising error at `p/10` to the single-qubit `sx`
+and `x` gates, while the proxy counts two-qubit gates only; it is a 2Q-dominated
+heuristic rather than the simulated error model itself, and the 0.0133 deviation
+absorbs the single-qubit contribution.
 
 As a small-angle heuristic for useful amplification, consider
 `(2k+1) · exp(−p(A + kQ))`: amplification times surviving fidelity. This is an
@@ -446,6 +454,10 @@ successfully"; `SamplerV2` fails the same way.
 - The ε = 10⁻⁴ probe was run at `nq = 4` only. The end-to-end frontier's
   behaviour at tight precision and small encoding error is not measured, so no
   end-to-end floor is established.
+- Fixed shot allocation: every IQAE round uses 1,024 shots. Shot allocation is
+  not optimised, and the query-cost constants behind the 8–60× ratios depend on
+  it. `oracle_queries` is Qiskit's `num_oracle_queries`, the sum over rounds of
+  shots × k (applications of `Q`), so shots spent at `k = 0` are not counted.
 - Twenty seeds per configuration is enough to resolve the bias at `c ≥ 0.10` but
   not at `c = 0.05`; the `ε = 10⁻⁴` probe uses five. Fitted exponents are
   small-sample observations; the seed bootstrap gives percentile intervals for
