@@ -21,7 +21,8 @@ on the same encoded grid across the tested budgets, and at a fixed grid
 [−0.76, −0.59]), consistent with the `M^−2/3` rate of the lowest-depth payoff
 encoding rather than the ideal `N^−1`. In the resource analysis, one application
 of the Grover operator compiles to 515–1,804 routed two-qubit gates on a
-heavy-hex-like topology, and the deepest circuit at ε = 10⁻⁴ is an estimated
+heavy-hex-like topology (one transpiler seed; twenty seeds spread within about
+±5% of their median), and the deepest circuit at ε = 10⁻⁴ is an estimated
 2.2 × 10⁶ two-qubit gates. In the noise study, a two-qubit depolarising parameter
 `p = 2 × 10⁻³` leads the useful-amplification heuristic to select
 `k = 0`: no coherent amplification helps.
@@ -306,6 +307,33 @@ Routing overhead increases noticeably with circuit width across these three
 points. Three small circuits are not enough to infer an asymptotic routing law,
 so no exponent is fitted.
 
+The table is one transpiler seed (11). Layout and routing are heuristic, so
+`scripts/06_transpiler_seeds.py` repeats the transpilation over twenty seeds
+(stored in `transpiler_seeds.json`). Routed two-qubit gates in `Q`:
+
+| `nq` | seed 11 | median of 20 | [min, max] | seeds ≤ seed 11 |
+|---|---|---|---|---|
+| 3 | 515 | 512 | [503, 538] | 60% |
+| 4 | 1,008 | 970 | [921, 1,008] | 100% |
+| 5 | 1,804 | 1,812 | [1,751, 1,873] | 35% |
+
+The spread is within about ±5% of the seed median. Seed 11 is a middling
+realisation at `nq = 3` and `nq = 5` and the largest of the twenty at `nq = 4`;
+the reference numbers are kept as they are, since every downstream figure was
+computed from them, and the deepest-circuit estimate below moves by ±3% across
+seeds (median 2.20 × 10⁶, range 2.12–2.27 × 10⁶).
+
+The same script checks the additive rule used for the deepest circuit,
+`A + k·Q` from separately transpiled blocks, against the composed circuit
+`A·Q^k` transpiled whole on the same coupling map and seed. For `k ≤ 4` the
+composed circuit is larger by 1–5% at both `nq = 3` and `nq = 5` (seed 11:
+1.011–1.048 and 1.031–1.047), because block boundaries have to be routed too;
+the marginal cost of one more `Q` inside the composed circuit is 2–11% above
+the block count. The additive estimate is therefore slightly optimistic rather
+than conservative. Whether the excess grows with `k` is not measured beyond
+`k = 4`, so the `k = 1,213` figure carries at least that few-percent
+understatement.
+
 These counts describe Qiskit's implementation of the oracle. The lognormal loader
 prepares the distribution with a generic amplitude-initialisation routine whose
 cost is not known to scale efficiently with qubit count; at 3–5 uncertainty
@@ -421,6 +449,7 @@ python scripts/02_analyse.py             # frontiers, matched classical comparis
 python scripts/03_resources.py           # circuits, schedule depth, error proxy
 python scripts/04_noise.py               # noise threshold, ~4 min
 python scripts/05_bootstrap.py           # seed bootstrap: exponent intervals, frontier membership, ~5 s
+python scripts/06_transpiler_seeds.py    # resource counts over 20 transpiler seeds, composed-circuit check, ~35 s
 ```
 
 `src/pricing.py` gives four independent routes to the same quantity:
@@ -477,7 +506,10 @@ successfully"; `SamplerV2` fails the same way.
   implementation, not a scalable state-preparation method. State preparation,
   payoff mapping and the Grover reflection are not costed separately.
 - The deepest-circuit count is an additive estimate from separately transpiled
-  blocks, not a transpilation of the composed circuit.
+  blocks, not a transpilation of the composed circuit. For `k ≤ 4` the composed
+  circuit exceeds it by 1–5% at `nq = 3` and `nq = 5`; the excess at `k = 1,213`
+  is not measured. Resource counts are one transpiler seed; over twenty seeds
+  the routed `Q` count varies within about ±5% of the median.
 - The zero-fault proxy assumes independent error accumulation and that one
   expected error spoils a circuit. It ignores error mitigation, algorithmic
   tolerance to modest infidelity, and logical failure rates and decoding under
