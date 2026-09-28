@@ -22,8 +22,8 @@ on the same encoded grid across the tested budgets, and at a fixed grid
 encoding rather than the ideal `N^−1`. In the resource analysis, one application
 of the Grover operator compiles to 515–1,804 routed two-qubit gates on a
 heavy-hex-like topology, and the deepest circuit at ε = 10⁻⁴ is an estimated
-2.2 × 10⁶ two-qubit gates. In the noise study, depolarising noise at a two-qubit
-error rate of 2 × 10⁻³ leads the useful-amplification heuristic to select
+2.2 × 10⁶ two-qubit gates. In the noise study, a two-qubit depolarising parameter
+`p = 2 × 10⁻³` leads the useful-amplification heuristic to select
 `k = 0`: no coherent amplification helps.
 
 **Why.** The practical comparison is set by the payoff-linearisation trade-off,
@@ -214,7 +214,8 @@ replacement within each configuration, frontier rebuilt and refitted on each,
 stored in `bootstrap.json`) puts intervals on these fits. The fixed-`nq`
 exponent is −0.66 with a 95% percentile interval of [−0.76, −0.59]; the
 mixed-`nq` exponent is −0.65 with [−0.75, −0.61]. Both intervals contain the
-−2/3 rate and exclude both the ideal −1 and the classical −0.5. The influence
+−2/3 rate; neither the ideal −1 nor the classical −0.5 lies within them.
+The influence
 of the ε = 10⁻⁴ probe is also quantified: without it the mixed exponent is
 −0.79 with interval [−0.97, −0.74], which barely overlaps the full-frontier
 interval. Frontier membership is less stable than the exponent: two of the six
@@ -343,7 +344,7 @@ zero-two-qubit-fault proxy. It is not a fault-tolerance threshold or a predictio
 of algorithmic failure probability. At the tightest precision run (ε = 10⁻⁴) the
 deepest circuit is 2.2 × 10⁶ two-qubit gates, so the proxy is 4.6 × 10⁻⁷:
 
-| 2Q error rate | vs zero-fault proxy |
+| 2Q depolarising parameter `p` | vs zero-fault proxy |
 |---|---|
 | 2 × 10⁻³ | 4,377× above |
 | 1 × 10⁻³ | 2,189× above |
@@ -376,14 +377,16 @@ mean absolute deviation 0.0133 over twelve points spanning contrast 0.99 to 0.08
 The simulator also applies depolarising error at `p/10` to the single-qubit `sx`
 and `x` gates, while the proxy counts two-qubit gates only; it is a 2Q-dominated
 heuristic rather than the simulated error model itself, and the 0.0133 deviation
-absorbs the single-qubit contribution.
+absorbs the single-qubit contribution. Throughout, `p` is the depolarising
+parameter of the two-qubit channel `E(ρ) = (1 − p)ρ + p·I/4`, which corresponds
+to an average gate infidelity of `3p/4`; it is not a calibrated backend metric.
 
 As a small-angle heuristic for useful amplification, consider
 `(2k+1) · exp(−p(A + kQ))`: amplification times surviving fidelity. This is an
 engineering proxy rather than a derived expression for the information gain of
 noisy amplitude estimation. Maximising it gives `k* ≈ 1/(pQ)`:
 
-| 2Q error rate | optimal `k` | `H(k*)` |
+| 2Q depolarising parameter `p` | optimal `k` | `H(k*)` |
 |---|---|---|
 | 2 × 10⁻³ | 0 | 0.52 |
 | 1 × 10⁻⁴ | 5 | 4.3 |
