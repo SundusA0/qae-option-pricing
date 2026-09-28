@@ -173,6 +173,21 @@ replicated (five seeds) and the most influential: without it the mixed fit gives
 justify, and should be read as qualitatively consistent rather than as a
 measurement of the asymptotic exponent.
 
+A bootstrap over seeds (`scripts/05_bootstrap.py`: 2,000 resamples with
+replacement within each configuration, frontier rebuilt and refitted on each,
+stored in `bootstrap.json`) puts intervals on these fits. The fixed-`nq`
+exponent is −0.66 with a 95% percentile interval of [−0.76, −0.59]; the
+mixed-`nq` exponent is −0.65 with [−0.75, −0.61]. Both intervals contain the
+−2/3 rate and exclude both the ideal −1 and the classical −0.5. The influence
+of the ε = 10⁻⁴ probe is also quantified: without it the mixed exponent is
+−0.79 with interval [−0.97, −0.74], which barely overlaps the full-frontier
+interval. Frontier membership is less stable than the exponent: two of the six
+frontier points appear in more than 90% of resamples, the other four in
+46–72%, and three configurations absent from the point-estimate frontier
+appear on the resampled frontier in 54–70% of resamples. The configuration
+grid is held fixed and only seeds are resampled, so these are seed-to-seed
+intervals for this sweep, not intervals over sweeps.
+
 ### RMSE relative to the analytic payoff (Black–Scholes reference)
 
 Truncation and discretisation included. The analytic payoff is the undiscounted
@@ -191,6 +206,9 @@ The most expensive configuration in the sweep is absent from this frontier. At
 analytic payoff, because that grid — 4 uncertainty qubits at `n_std = 5` — sits
 0.1317 from the true value. A configuration using sixteen times fewer queries has
 lower end-to-end error.
+The bootstrap keeps it off this frontier in 95% of resamples. The best
+end-to-end point is `nq = 5, c = 0.10, ε = 10⁻³` in 65% of resamples and
+`nq = 5, c = 0.05, ε = 10⁻³` in 29%.
 
 For that run, encoding error at `nq = 4` is the dominant limitation, and reducing
 it requires more qubits or a wider window rather than more queries. The best
@@ -198,7 +216,11 @@ end-to-end point, at `nq = 5`, has encoding error 0.004; its 0.149 is
 linearisation offset and spread at `c = 0.10, ε = 10⁻³`, not an encoding floor.
 The sweep does not include ε = 10⁻⁴ at `nq = 5`, so where the end-to-end
 frontier would eventually floor is not established. No exponent is quoted for
-it: four points, and the sweep stops before the question is answered.
+it: four points, and the sweep stops before the question is answered. The
+bootstrap supports the refusal: the resampled end-to-end fit has interval
+[−0.95, −0.44], and its distribution (median −0.70) is not centred on the
+point-estimate fit (−0.50), which is what a selection-dominated statistic looks
+like.
 
 ### Query-scaling comparison against classical Monte Carlo
 
@@ -397,9 +419,9 @@ successfully"; `SamplerV2` fails the same way.
   end-to-end floor is established.
 - Twenty seeds per configuration is enough to resolve the bias at `c ≥ 0.10` but
   not at `c = 0.05`; the `ε = 10⁻⁴` probe uses five. Fitted exponents are
-  small-sample observations without confidence intervals, not characterised
-  measurements of asymptotic rates. A bootstrap over seeds and frontier
-  membership would quantify this and is not done here.
+  small-sample observations; the seed bootstrap gives percentile intervals for
+  them but holds the configuration grid fixed, so it does not characterise the
+  asymptotic rate or variability across sweeps.
 - Truncation and discretisation are measured jointly as encoding error, not
   separated with a continuous truncated-distribution reference.
 - The resource counts describe Qiskit's generic amplitude-initialisation loader,
