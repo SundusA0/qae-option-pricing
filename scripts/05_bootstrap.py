@@ -2,8 +2,8 @@
 Bootstrap the frontier exponents and frontier membership over seeds.
 
 02_analyse.py fits RMSE ~ N^b to the Pareto frontier of the sweep. That
-frontier is selected from noisy per-configuration RMSE estimates (20 seeds for
-most configurations, 5 for the eps=1e-4 probe), so configurations that happen
+frontier is selected from noisy per-configuration RMSE estimates (20 seeds per
+configuration once the eps=1e-4 probe is extended), so configurations that happen
 to draw well can enter the frontier preferentially, and the fitted exponent
 inherits that selection. This script resamples seeds with replacement within
 each configuration, rebuilds the frontiers and refits the exponents on every

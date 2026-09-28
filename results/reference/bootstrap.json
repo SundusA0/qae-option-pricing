@@ -11,7 +11,7 @@
     "nq=3, c=0.1, eps=0.01": 20,
     "nq=3, c=0.25, eps=0.001": 20,
     "nq=3, c=0.25, eps=0.01": 20,
-    "nq=4, c=0.05, eps=0.0001": 5,
+    "nq=4, c=0.05, eps=0.0001": 20,
     "nq=4, c=0.05, eps=0.001": 20,
     "nq=4, c=0.05, eps=0.01": 20,
     "nq=4, c=0.1, eps=0.001": 20,
@@ -27,36 +27,36 @@
   },
   "exponents": {
     "conditional": {
-      "point": -0.6543852680645352,
+      "point": -0.6431133218201625,
       "n_fits": 2000,
       "n_resamples": 2000,
-      "ci_low": -0.7526212696952103,
-      "ci_high": -0.6059959373973309,
-      "median": -0.6744361807575996
+      "ci_low": -0.7108276870266117,
+      "ci_high": -0.6055787105166268,
+      "median": -0.6632275571802513
     },
     "conditional_without_last": {
       "point": -0.792142984883527,
       "n_fits": 2000,
       "n_resamples": 2000,
-      "ci_low": -0.96474227757966,
-      "ci_high": -0.7368430636218466,
-      "median": -0.8282215146279075
+      "ci_low": -0.9681263607976189,
+      "ci_high": -0.7323049748217404,
+      "median": -0.8273100451779734
     },
     "conditional_fixed_nq": {
-      "point": -0.6587429905530349,
+      "point": -0.6472887150908362,
       "n_fits": 2000,
       "n_resamples": 2000,
-      "ci_low": -0.7555344847232414,
-      "ci_high": -0.5930204353175929,
-      "median": -0.6598356207622766
+      "ci_low": -0.7039808468488041,
+      "ci_high": -0.6032326185539906,
+      "median": -0.6465244483704164
     },
     "end_to_end": {
       "point": -0.5040036530289601,
-      "n_fits": 2000,
+      "n_fits": 1999,
       "n_resamples": 2000,
-      "ci_low": -0.9529524562454083,
-      "ci_high": -0.43737612905180073,
-      "median": -0.700262072678733
+      "ci_low": -0.950961781403818,
+      "ci_high": -0.43459797330270733,
+      "median": -0.7223885673723656
     }
   },
   "membership_conditional": {
@@ -65,59 +65,59 @@
       "on_point_frontier": true
     },
     "nq=3, c=0.25, eps=0.01": {
-      "frequency": 0.9185,
+      "frequency": 0.9195,
       "on_point_frontier": true
     },
     "nq=5, c=0.1, eps=0.001": {
-      "frequency": 0.72,
+      "frequency": 0.733,
       "on_point_frontier": true
     },
     "nq=5, c=0.1, eps=0.01": {
-      "frequency": 0.704,
+      "frequency": 0.712,
       "on_point_frontier": true
     },
     "nq=4, c=0.1, eps=0.01": {
-      "frequency": 0.7015,
-      "on_point_frontier": false
-    },
-    "nq=3, c=0.1, eps=0.01": {
-      "frequency": 0.5525,
+      "frequency": 0.6855,
       "on_point_frontier": false
     },
     "nq=4, c=0.1, eps=0.001": {
-      "frequency": 0.5445,
+      "frequency": 0.5575,
+      "on_point_frontier": false
+    },
+    "nq=3, c=0.1, eps=0.01": {
+      "frequency": 0.554,
       "on_point_frontier": false
     },
     "nq=3, c=0.1, eps=0.001": {
-      "frequency": 0.5255,
+      "frequency": 0.5155,
       "on_point_frontier": true
     },
     "nq=4, c=0.05, eps=0.001": {
-      "frequency": 0.46,
+      "frequency": 0.4335,
       "on_point_frontier": true
     },
-    "nq=5, c=0.25, eps=0.01": {
-      "frequency": 0.374,
+    "nq=4, c=0.25, eps=0.01": {
+      "frequency": 0.383,
       "on_point_frontier": false
     },
-    "nq=4, c=0.25, eps=0.01": {
-      "frequency": 0.36,
+    "nq=5, c=0.25, eps=0.01": {
+      "frequency": 0.3745,
       "on_point_frontier": false
     },
     "nq=3, c=0.05, eps=0.001": {
-      "frequency": 0.3205,
+      "frequency": 0.322,
       "on_point_frontier": false
     },
     "nq=5, c=0.05, eps=0.001": {
-      "frequency": 0.1815,
+      "frequency": 0.1915,
       "on_point_frontier": false
     },
     "nq=4, c=0.05, eps=0.01": {
-      "frequency": 0.025,
+      "frequency": 0.0235,
       "on_point_frontier": false
     },
     "nq=5, c=0.05, eps=0.01": {
-      "frequency": 0.02,
+      "frequency": 0.021,
       "on_point_frontier": false
     },
     "nq=3, c=0.05, eps=0.01": {
@@ -139,67 +139,67 @@
   },
   "membership_end_to_end": {
     "nq=5, c=0.1, eps=0.001": {
-      "frequency": 0.975,
+      "frequency": 0.9735,
       "on_point_frontier": true
     },
     "nq=5, c=0.25, eps=0.01": {
-      "frequency": 0.94,
+      "frequency": 0.9365,
       "on_point_frontier": true
     },
     "nq=4, c=0.1, eps=0.01": {
-      "frequency": 0.704,
+      "frequency": 0.692,
       "on_point_frontier": true
     },
     "nq=5, c=0.1, eps=0.01": {
-      "frequency": 0.6805,
+      "frequency": 0.6895,
       "on_point_frontier": false
     },
     "nq=3, c=0.1, eps=0.01": {
-      "frequency": 0.5255,
-      "on_point_frontier": false
-    },
-    "nq=3, c=0.1, eps=0.001": {
-      "frequency": 0.421,
-      "on_point_frontier": true
-    },
-    "nq=4, c=0.1, eps=0.001": {
-      "frequency": 0.4075,
+      "frequency": 0.5225,
       "on_point_frontier": false
     },
     "nq=5, c=0.05, eps=0.001": {
-      "frequency": 0.3985,
+      "frequency": 0.4255,
       "on_point_frontier": false
     },
+    "nq=4, c=0.1, eps=0.001": {
+      "frequency": 0.4105,
+      "on_point_frontier": false
+    },
+    "nq=3, c=0.1, eps=0.001": {
+      "frequency": 0.402,
+      "on_point_frontier": true
+    },
     "nq=4, c=0.25, eps=0.01": {
-      "frequency": 0.3885,
+      "frequency": 0.4005,
       "on_point_frontier": false
     },
     "nq=4, c=0.05, eps=0.001": {
-      "frequency": 0.086,
+      "frequency": 0.0765,
       "on_point_frontier": false
     },
     "nq=3, c=0.25, eps=0.01": {
-      "frequency": 0.0695,
-      "on_point_frontier": false
-    },
-    "nq=4, c=0.05, eps=0.0001": {
-      "frequency": 0.05,
-      "on_point_frontier": false
-    },
-    "nq=4, c=0.05, eps=0.01": {
-      "frequency": 0.03,
+      "frequency": 0.0715,
       "on_point_frontier": false
     },
     "nq=3, c=0.05, eps=0.01": {
-      "frequency": 0.025,
+      "frequency": 0.038,
+      "on_point_frontier": false
+    },
+    "nq=4, c=0.05, eps=0.0001": {
+      "frequency": 0.033,
+      "on_point_frontier": false
+    },
+    "nq=4, c=0.05, eps=0.01": {
+      "frequency": 0.029,
       "on_point_frontier": false
     },
     "nq=5, c=0.05, eps=0.01": {
-      "frequency": 0.016,
+      "frequency": 0.022,
       "on_point_frontier": false
     },
     "nq=3, c=0.05, eps=0.001": {
-      "frequency": 0.01,
+      "frequency": 0.0045,
       "on_point_frontier": false
     },
     "nq=3, c=0.25, eps=0.001": {
@@ -218,10 +218,10 @@
   "best_end_to_end": {
     "point": "nq=5, c=0.1, eps=0.001",
     "frequency": {
-      "nq=5, c=0.1, eps=0.001": 0.649,
-      "nq=5, c=0.05, eps=0.001": 0.292,
-      "nq=4, c=0.05, eps=0.0001": 0.05,
-      "nq=4, c=0.05, eps=0.001": 0.009
+      "nq=5, c=0.1, eps=0.001": 0.631,
+      "nq=5, c=0.05, eps=0.001": 0.3285,
+      "nq=4, c=0.05, eps=0.0001": 0.033,
+      "nq=4, c=0.05, eps=0.001": 0.0075
     }
   }
 }

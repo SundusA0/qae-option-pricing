@@ -37,15 +37,15 @@
       "epsilon_target": 0.001
     },
     {
-      "queries": 966451.2,
-      "error": 0.0437234006146132,
+      "queries": 1125171.2,
+      "error": 0.042063582739468496,
       "num_qubits": 4,
       "rescaling_factor": 0.05,
       "epsilon_target": 0.0001
     }
   ],
-  "conditional_exponent": -0.6543852680645352,
-  "conditional_exponent_fixed_nq": -0.6587429905530352,
+  "conditional_exponent": -0.6431133218201626,
+  "conditional_exponent_fixed_nq": -0.6472887150908365,
   "conditional_fixed_nq": 4,
   "end_to_end_frontier": [
     {
@@ -119,12 +119,12 @@
       "ratio": 8.666129618078495
     },
     {
-      "queries": 966451.2,
-      "error": 0.0437234006146132,
+      "queries": 1125171.2,
+      "error": 0.042063582739468496,
       "num_qubits": 4,
       "grid_sigma": 12.777916123396851,
-      "mc_samples": 85406.75116367942,
-      "ratio": 11.315864224220704
+      "mc_samples": 92279.99124737595,
+      "ratio": 12.19301372692745
     }
   ]
 }

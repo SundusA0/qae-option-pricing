@@ -17,8 +17,8 @@ and noise constraints accompany those workloads?
 **Result.** Three separate experiments. In the simulated estimator sweep, QAE
 needs 8–60× more Grover-operator queries than classical Monte Carlo needs samples
 on the same encoded grid across the tested budgets, and at a fixed grid
-(`nq = 4`) the RMSE falls as `N^−0.66` (seed-bootstrap 95% interval
-[−0.76, −0.59]), consistent with the `M^−2/3` rate of the lowest-depth payoff
+(`nq = 4`) the RMSE falls as `N^−0.65` (seed-bootstrap 95% interval
+[−0.70, −0.60]), consistent with the `M^−2/3` rate of the lowest-depth payoff
 encoding rather than the ideal `N^−1`. In the resource analysis, one application
 of the Grover operator compiles to 515–1,804 routed two-qubit gates on a
 heavy-hex-like topology (one transpiler seed; twenty seeds spread within about
@@ -185,8 +185,8 @@ counts, so the distribution grid is not held fixed along it; the fixed-`nq` fit
 after the table addresses that. Estimated RMSE is `√(bias² + sd²)`, the usual
 bias–variance decomposition of a single run's root-mean-square error. `sd` uses
 the n − 1 denominator, so this estimates the population RMSE; the in-sample
-`√(mean((x̂ᵢ − x)²))` equals `√(bias² + sd²·(n−1)/n)` and is lower by up to about
-10% at five seeds.
+`√(mean((x̂ᵢ − x)²))` equals `√(bias² + sd²·(n−1)/n)`, about 2.5% lower at
+twenty seeds.
 
 | oracle queries | RMSE | configuration |
 |---|---|---|
@@ -195,34 +195,36 @@ the n − 1 denominator, so this estimates the population RMSE; the in-sample
 | 57,754 | 0.1751 | nq=3, c=0.10, ε=10⁻³ |
 | 59,546 | 0.1461 | nq=5, c=0.10, ε=10⁻³ |
 | 70,605 | 0.1416 | nq=4, c=0.05, ε=10⁻³ |
-| 966,451 | 0.0437 | nq=4, c=0.05, ε=10⁻⁴ |
+| 1,125,171 | 0.0421 | nq=4, c=0.05, ε=10⁻⁴ |
 
-Empirical fit `RMSE ~ N^−0.65` over the six mixed-`nq` frontier points (stored
+Empirical fit `RMSE ~ N^−0.64` over the six mixed-`nq` frontier points (stored
 as `conditional_exponent` in `frontiers.json`), equivalently a query-complexity
-exponent of −1.53. The cleaner comparison holds the distribution grid fixed (the
+exponent of −1.55. The cleaner comparison holds the distribution grid fixed (the
 payoff rescaling `c` still varies, as the trade-off requires): at `nq = 4` alone,
 the only qubit count carrying the ε = 10⁻⁴ probe, the five-point frontier
-gives `RMSE ~ N^−0.66`, equivalently **−1.52**, against the −1.5 the trade-off
+gives `RMSE ~ N^−0.65`, equivalently **−1.54**, against the −1.5 the trade-off
 predicts. The mixed-`nq` frontier is a best-achieved envelope; the fixed-`nq`
-fit is the basis for the scaling comparison. The last point is the least
-replicated (five seeds) and the most influential: without it the mixed fit gives
-−1.26. Agreement this close is more than a five-point fit on one option can
+fit is the basis for the scaling comparison. The last point is the most
+influential: without it the mixed fit gives −1.26. It was run at five seeds and
+later extended to twenty (`01_validate.py --probe-seeds 20`), which moved the
+fixed-`nq` exponent from −0.66 to −0.65 and narrowed its bootstrap interval
+below. Agreement this close is more than a five-point fit on one option can
 justify, and should be read as qualitatively consistent rather than as a
 measurement of the asymptotic exponent.
 
 A bootstrap over seeds (`scripts/05_bootstrap.py`: 2,000 resamples with
 replacement within each configuration, frontier rebuilt and refitted on each,
 stored in `bootstrap.json`) puts intervals on these fits. The fixed-`nq`
-exponent is −0.66 with a 95% percentile interval of [−0.76, −0.59]; the
-mixed-`nq` exponent is −0.65 with [−0.75, −0.61]. Both intervals contain the
+exponent is −0.65 with a 95% percentile interval of [−0.70, −0.60]; the
+mixed-`nq` exponent is −0.64 with [−0.71, −0.61]. Both intervals contain the
 −2/3 rate; neither the ideal −1 nor the classical −0.5 lies within them.
 The influence
 of the ε = 10⁻⁴ probe is also quantified: without it the mixed exponent is
-−0.79 with interval [−0.97, −0.74], which barely overlaps the full-frontier
+−0.79 with interval [−0.97, −0.73], which does not overlap the full-frontier
 interval. Frontier membership is less stable than the exponent: two of the six
 frontier points appear in more than 90% of resamples, the other four in
-46–72%, and three configurations absent from the point-estimate frontier
-appear on the resampled frontier in 54–70% of resamples. The configuration
+43–73%, and three configurations absent from the point-estimate frontier
+appear on the resampled frontier in 55–69% of resamples. The configuration
 grid is held fixed and only seeds are resampled, so these are seed-to-seed
 intervals for this sweep, not intervals over sweeps.
 
@@ -240,13 +242,13 @@ expectation `E[max(S_T − K, 0)]`; the Black–Scholes price is that times
 | 59,546 | 0.1493 | nq=5, c=0.10, ε=10⁻³ |
 
 The most expensive configuration in the sweep is absent from this frontier. At
-966,451 queries it reaches 0.0395 against its own grid but 0.1722 against the
+1,125,171 queries it reaches 0.0405 against its own grid but 0.1725 against the
 analytic payoff, because that grid — 4 uncertainty qubits at `n_std = 5` — sits
-0.1317 from the true value. A configuration using sixteen times fewer queries has
+0.1317 from the true value. A configuration using nineteen times fewer queries has
 lower end-to-end error.
-The bootstrap keeps it off this frontier in 95% of resamples. The best
-end-to-end point is `nq = 5, c = 0.10, ε = 10⁻³` in 65% of resamples and
-`nq = 5, c = 0.05, ε = 10⁻³` in 29%.
+The bootstrap keeps it off this frontier in 97% of resamples. The best
+end-to-end point is `nq = 5, c = 0.10, ε = 10⁻³` in 63% of resamples and
+`nq = 5, c = 0.05, ε = 10⁻³` in 33%.
 
 For that run, encoding error at `nq = 4` is the dominant limitation, and reducing
 it requires more qubits or a wider window rather than more queries. The best
@@ -256,7 +258,7 @@ The sweep does not include ε = 10⁻⁴ at `nq = 5`, so where the end-to-end
 frontier would eventually floor is not established. No exponent is quoted for
 it: four points, and the sweep stops before the question is answered. The
 bootstrap supports the refusal: the resampled end-to-end fit has interval
-[−0.95, −0.44], and its distribution (median −0.70) is not centred on the
+[−0.95, −0.44], and its distribution (median −0.72) is not centred on the
 point-estimate fit (−0.50), which is what a selection-dominated statistic looks
 like.
 
@@ -274,7 +276,7 @@ would score the two methods on different quantities.
 | 0.1751 | 3 | 12.4543 | 57,754 | 5,061 | 11× |
 | 0.1461 | 5 | 12.8454 | 59,546 | 7,735 | 8× |
 | 0.1416 | 4 | 12.7779 | 70,605 | 8,147 | 9× |
-| 0.0437 | 4 | 12.7779 | 966,451 | 85,407 | 11× |
+| 0.0421 | 4 | 12.7779 | 1,125,171 | 92,280 | 12× |
 
 Amplitude estimation needs more oracle queries than Monte Carlo needs samples at
 every budget reachable in simulation, by a factor of roughly 8 to 60 across the
@@ -445,6 +447,7 @@ pip install -r requirements-lock.txt      # exact resolved environment
 python -m pytest tests/ -q               # 15 tests, ~40 s
 python scripts/01_validate.py --quick    # ~20 s
 python scripts/01_validate.py            # ~40 min, 18 configs x 20 seeds + one eps=1e-4 probe x 5
+python scripts/01_validate.py --probe-seeds 20   # extend the probe to 20 seeds in place, ~10 min
 python scripts/02_analyse.py             # frontiers, matched classical comparison, frontier.png
 python scripts/03_resources.py           # circuits, schedule depth, error proxy
 python scripts/04_noise.py               # noise threshold, ~4 min
@@ -495,7 +498,7 @@ successfully"; `SamplerV2` fails the same way.
   it. `oracle_queries` is Qiskit's `num_oracle_queries`, the sum over rounds of
   shots × k (applications of `Q`), so shots spent at `k = 0` are not counted.
 - Twenty seeds per configuration is enough to resolve the bias at `c ≥ 0.10` but
-  not at `c = 0.05`; the `ε = 10⁻⁴` probe uses five. Fitted exponents are
+  not at `c = 0.05`. Fitted exponents are
   small-sample observations; the seed bootstrap gives percentile intervals for
   them but holds the configuration grid fixed, so it does not characterise the
   asymptotic rate or variability across sweeps.

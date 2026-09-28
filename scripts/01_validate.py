@@ -23,6 +23,8 @@ Usage:
     python scripts/01_validate.py --quick    # coarse sweep (~20 s)
     python scripts/01_validate.py            # full sweep: 18 configs x 20 seeds
                                              #   + one eps=1e-4 probe x 5 seeds
+    python scripts/01_validate.py --probe-seeds 20
+                                             # extend the probe to 20 seeds in place
 """
 
 import argparse
@@ -70,12 +72,103 @@ def continuous_mc_baseline(spec: OptionSpec, target_se: float, seed: int = 0) ->
             "estimate": est, "std_error": se}
 
 
+PROBE = (4, 0.05, 1e-4)   # the one eps=1e-4 configuration in the full sweep
+CSV_FIELDS = ["n_std", "num_qubits", "rescaling_factor", "epsilon_target", "seed",
+              "estimate", "grid_exact", "err_vs_grid", "err_vs_analytic",
+              "oracle_queries", "circuit_qubits"]
+
+
+def extend_probe(target_seeds: int) -> None:
+    """
+    Append seeds to the eps=1e-4 probe without re-running the main sweep.
+
+    Reads results/validation.csv, finds which probe seeds are present, runs the
+    missing ones in 1000..1000+target_seeds-1, appends them, and refreshes the
+    probe's aggregate row in summary.json. The other 18 configurations are
+    untouched, so their rows and statistics are exactly those of the full sweep.
+    """
+    nq, c, eps = PROBE
+    csv_path = RESULTS / "validation.csv"
+    summary_path = RESULTS / "summary.json"
+    if not csv_path.exists():
+        raise SystemExit("results/validation.csv not found: run the full sweep first")
+    with open(csv_path, newline="") as fh:
+        existing = list(csv.DictReader(fh))
+    probe_rows = [r for r in existing
+                  if int(r["num_qubits"]) == nq and float(r["rescaling_factor"]) == c
+                  and float(r["epsilon_target"]) == eps]
+    if not probe_rows:
+        raise SystemExit("no probe rows in validation.csv")
+    n_std = int(float(probe_rows[0]["n_std"]))
+    have = {int(r["seed"]) for r in probe_rows}
+    todo = [s for s in range(1000, 1000 + target_seeds) if s not in have]
+
+    spec = OptionSpec()
+    analytic = expected_payoff_analytic(spec)
+    grid = expected_payoff_grid(spec, nq, n_std=n_std)
+    print("=" * 68)
+    print(f"EXTEND PROBE  nq={nq}, c={c}, eps={eps:g}, n_std={n_std}")
+    print("=" * 68)
+    print(f"  present: {len(have)} seeds ({min(have)}..{max(have)}); to run: {len(todo)}")
+    if not todo:
+        print("  nothing to do")
+        return
+    print(f"  {'seed':>6} {'estimate':>10} {'err_grid':>9} {'queries':>9} {'sec':>6}")
+    with open(csv_path, "a", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=CSV_FIELDS)
+        for seed in todo:
+            t0 = time.perf_counter()
+            r = expected_payoff_qae(spec, nq, epsilon_target=eps, rescaling_factor=c,
+                                    n_std=n_std, seed=seed)
+            writer.writerow({
+                "n_std": n_std, "num_qubits": nq, "rescaling_factor": c,
+                "epsilon_target": eps, "seed": seed,
+                "estimate": r["estimate"], "grid_exact": grid,
+                "err_vs_grid": abs(r["estimate"] - grid),
+                "err_vs_analytic": abs(r["estimate"] - analytic),
+                "oracle_queries": r["oracle_queries"],
+                "circuit_qubits": r["circuit_qubits"],
+            })
+            fh.flush()
+            print(f"  {seed:>6} {r['estimate']:>10.5f} {abs(r['estimate'] - grid):>9.4f} "
+                  f"{r['oracle_queries']:>9,} {time.perf_counter() - t0:>6.1f}")
+
+    # refresh the probe's aggregate row in summary.json from all its CSV rows
+    if summary_path.exists():
+        with open(csv_path, newline="") as fh:
+            rows = [r for r in csv.DictReader(fh)
+                    if int(r["num_qubits"]) == nq and float(r["rescaling_factor"]) == c
+                    and float(r["epsilon_target"]) == eps]
+        ests = [float(r["estimate"]) for r in rows]
+        queries = [int(r["oracle_queries"]) for r in rows]
+        mean = statistics.fmean(ests)
+        sd = statistics.stdev(ests)
+        summary = json.loads(summary_path.read_text())
+        for rec in summary["qae_sweep"]:
+            if (rec["num_qubits"] == nq and rec["rescaling_factor"] == c
+                    and rec["epsilon_target"] == eps):
+                rec.update({"n_seeds": len(ests), "mean_estimate": mean,
+                            "bias": abs(mean - grid), "se": sd / len(ests) ** 0.5, "sd": sd,
+                            "mean_oracle_queries": statistics.fmean(queries)})
+        summary["probe_seeds"] = len(ests)
+        summary_path.write_text(json.dumps(summary, indent=2))
+        print(f"\n  probe now {len(ests)} seeds: mean {mean:.5f}, bias {abs(mean - grid):.4f}, "
+              f"sd {sd:.4f}; summary.json refreshed")
+    print(f"  appended {len(todo)} rows to {csv_path.name}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--quick", action="store_true", help="coarse, fast sweep")
     parser.add_argument("--seeds", type=int, default=20,
                         help="repeats per configuration (default 20)")
+    parser.add_argument("--probe-seeds", type=int, default=None,
+                        help="extend the eps=1e-4 probe to this many seeds in place "
+                             "and exit; the main sweep is not re-run")
     args = parser.parse_args()
+    if args.probe_seeds is not None:
+        extend_probe(args.probe_seeds)
+        return
 
     RESULTS.mkdir(exist_ok=True)
     spec = OptionSpec()
@@ -149,11 +242,7 @@ def main() -> None:
     csv_path = RESULTS / ("validation_quick.csv" if args.quick else "validation.csv")
     rows = []
     with open(csv_path, "w", newline="") as fh:
-        writer = csv.DictWriter(fh, fieldnames=[
-            "n_std", "num_qubits", "rescaling_factor", "epsilon_target", "seed",
-            "estimate", "grid_exact", "err_vs_grid", "err_vs_analytic",
-            "oracle_queries", "circuit_qubits",
-        ])
+        writer = csv.DictWriter(fh, fieldnames=CSV_FIELDS)
         writer.writeheader()
 
         for nq, c, eps in configs:
