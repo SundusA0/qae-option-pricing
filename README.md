@@ -10,19 +10,21 @@ circuits and hardware-oriented resource and noise proxies.
 
 ## Summary
 
-**Question.** Does the quadratic query advantage of amplitude estimation survive
-payoff encoding, finite sampling, circuit compilation and noise on a vanilla
-European call?
+**Question.** What remains of amplitude estimation's query advantage on a vanilla
+European call after payoff encoding and finite sampling, and what circuit-depth
+and noise constraints accompany those workloads?
 
-**Result.** Not in the regime reachable in simulation. Across the tested budgets,
-QAE needs 8–60× more oracle queries than classical Monte Carlo needs samples on
-the same encoded grid. One application of the Grover operator compiles to
-515–1,804 routed two-qubit gates on a heavy-hex-like topology, and the deepest
-circuit at ε = 10⁻⁴ is an estimated 2.2 × 10⁶ two-qubit gates. Under depolarising
-noise at a two-qubit error rate of 2 × 10⁻³, the useful-amplification heuristic
-selects `k = 0`: no coherent amplification helps. At a fixed grid (`nq = 4`) the RMSE falls
-as `N^−0.66` (seed-bootstrap 95% interval [−0.76, −0.59]), consistent with the
-`M^−2/3` rate of the lowest-depth payoff encoding rather than the ideal `N^−1`.
+**Result.** Three separate experiments. In the simulated estimator sweep, QAE
+needs 8–60× more Grover-operator queries than classical Monte Carlo needs samples
+on the same encoded grid across the tested budgets, and at a fixed grid
+(`nq = 4`) the RMSE falls as `N^−0.66` (seed-bootstrap 95% interval
+[−0.76, −0.59]), consistent with the `M^−2/3` rate of the lowest-depth payoff
+encoding rather than the ideal `N^−1`. In the resource analysis, one application
+of the Grover operator compiles to 515–1,804 routed two-qubit gates on a
+heavy-hex-like topology, and the deepest circuit at ε = 10⁻⁴ is an estimated
+2.2 × 10⁶ two-qubit gates. In the noise study, depolarising noise at a two-qubit
+error rate of 2 × 10⁻³ leads the useful-amplification heuristic to select
+`k = 0`: no coherent amplification helps.
 
 **Why.** The practical comparison is set by the payoff-linearisation trade-off,
 the encoding error of the truncated and discretised distribution, and coherent
@@ -31,8 +33,9 @@ floor is not reached within this sweep.
 
 **What is here.** Iterative amplitude estimation on a Qiskit Finance European
 call; sweeps over qubit count, rescaling factor and target precision at 20 seeds
-per configuration; an error budget separating encoding, linearisation and
-sampling error; a classical Monte Carlo comparison on the same encoded grid;
+per configuration; an error budget that isolates encoding error and
+characterises the linearisation and sampling contributions as systematic
+offset and spread; a classical Monte Carlo comparison on the same encoded grid;
 transpiled resource counts and the IQAE depth schedule; a depolarising-noise
 simulation; a seed bootstrap over the frontier fits; tests and CI. This is a
 reproduction and benchmarking study, not a new algorithm.
@@ -414,6 +417,7 @@ python scripts/01_validate.py            # ~40 min, 18 configs x 20 seeds + one 
 python scripts/02_analyse.py             # frontiers, matched classical comparison, frontier.png
 python scripts/03_resources.py           # circuits, schedule depth, error proxy
 python scripts/04_noise.py               # noise threshold, ~4 min
+python scripts/05_bootstrap.py           # seed bootstrap: exponent intervals, frontier membership, ~5 s
 ```
 
 `src/pricing.py` gives four independent routes to the same quantity:
