@@ -49,9 +49,11 @@ from src.pricing import (
 RESULTS = Path(__file__).resolve().parents[1] / "results"
 
 
-def classical_baseline(spec: OptionSpec, target_se: float, seed: int = 0) -> dict:
+def continuous_mc_baseline(spec: OptionSpec, target_se: float, seed: int = 0) -> dict:
     """
-    Classical MC sample size required for a given standard error.
+    Classical MC sample size required for a given standard error, on the
+    continuous lognormal. A sanity baseline for the estimator; the matched
+    comparison on the encoded grid is made in 02_analyse.py.
 
     The requirement is computed from a pilot variance estimate. The actual
     simulation is capped at 20M samples, so for tight targets the returned
@@ -194,8 +196,10 @@ def main() -> None:
 
     print()
     print("=" * 68)
-    print("CLASSICAL MONTE CARLO BASELINE")
+    print("CLASSICAL MONTE CARLO BASELINE (continuous lognormal)")
     print("=" * 68)
+    print("  Sanity baseline on the untruncated model. The matched-grid comparison")
+    print("  that supports the README's query ratios is made in 02_analyse.py.")
     print("  'required' is the sample count for the target SE, from a pilot")
     print("  variance estimate; 'simulated' is what was actually run (capped at")
     print("  20M), and the estimate and SE columns come from that run.")
@@ -204,7 +208,7 @@ def main() -> None:
           f"{'estimate':>10}  {'SE (sim.)':>10}")
     baselines = []
     for target in (1e-1, 1e-2, 1e-3):
-        b = classical_baseline(spec, target)
+        b = continuous_mc_baseline(spec, target)
         b["target_se"] = target
         baselines.append(b)
         print(f"  {target:>10}  {b['required_samples']:>13,}  "
@@ -219,7 +223,7 @@ def main() -> None:
         "qae_n_std": N_STD,
         "qae_sweep": rows,
         "n_seeds": n_seeds,
-        "classical_baseline": baselines,
+        "classical_baseline": baselines,  # key kept for existing summary.json files
     }
     out = RESULTS / ("summary_quick.json" if args.quick else "summary.json")
     out.write_text(json.dumps(summary, indent=2))

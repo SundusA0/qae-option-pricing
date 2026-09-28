@@ -38,7 +38,10 @@ class OptionSpec:
 
 
 def black_scholes_call(spec: OptionSpec) -> float:
-    """Closed-form discounted price. This is ground truth."""
+    """
+    Closed-form discounted price: the analytic reference under the
+    Black–Scholes assumptions, not a market price.
+    """
     d1 = (np.log(spec.S0 / spec.K) + (spec.r + 0.5 * spec.vol**2) * spec.T) / (
         spec.vol * np.sqrt(spec.T)
     )
@@ -69,7 +72,11 @@ def expected_payoff_grid(spec: OptionSpec, num_qubits: int, n_std: float = 3.0) 
 
 
 def expected_payoff_mc(spec: OptionSpec, n_samples: int, seed: int = 0) -> tuple[float, float]:
-    """Classical Monte Carlo baseline. Returns (estimate, standard error)."""
+    """
+    Classical Monte Carlo on the continuous lognormal (untruncated, not
+    discretised). Returns (estimate, standard error). The comparison that
+    scores QAE and Monte Carlo on the same encoded grid is in 02_analyse.py.
+    """
     rng = np.random.default_rng(seed)
     z = rng.standard_normal(n_samples)
     sT = np.exp(spec.mu + spec.sigma * z)
